@@ -1,6 +1,6 @@
 # Duplicate-photo benchmark
 
-Compares the signal Good Take uses to find near-identical photos (Apple Vision's feature print)
+Compares the signal Tidykeep uses to find near-identical photos (Apple Vision's feature print)
 with open-source alternatives: perceptual hashes (aHash, pHash, dHash, wHash, PDQ) and learned
 image embeddings (CLIP, MobileCLIP, SigLIP 2, DINOv2/v3, SSCD). Each one is also run inside the
 app's own grouping step. Everything runs on this Mac.
@@ -30,7 +30,7 @@ bench/
 ```
 uv venv bench/.venv --python 3.12
 VIRTUAL_ENV=bench/.venv uv pip install -r bench/requirements.txt
-cd GoodTakeKit && swift build -c release --product gtscan    # for the apple-* methods
+cd TidykeepKit && swift build -c release --product tkscan    # for the apple-* methods
 ```
 
 Model weights download on first use into `bench/models/` (`HF_HOME`, `TORCH_HOME` and the
@@ -76,20 +76,20 @@ bench/.venv/bin/python bench/evaluate.py --skip-app --boot 100   # embeddings on
 - **Time window.** Every embedding inside the app's grouping step, via `series_port.py`: capture
   order, max gap and span, link and anchor distances, int8 quantization. Link distances come
   from the transfer threshold, from a sweep on the photo-triage-tight dev half, or from the
-  app's presets. The port is checked group for group against `gtscan scan`, and selected
-  embeddings are also run through gtscan itself with `--features`.
-- **App pipeline and best shot.** `gtscan eval`/`scan`/`rank`, cached in `out/<dataset>/app/`
+  app's presets. The port is checked group for group against `tkscan scan`, and selected
+  embeddings are also run through tkscan itself with `--features`.
+- **App pipeline and best shot.** `tkscan eval`/`scan`/`rank`, cached in `out/<dataset>/app/`
   (`--force-app` reruns them).
 - **Integrity checks.** ids, metric direction, unit norms, and duplicate files across datasets.
 
 ### The app's own pipeline
 
-`gtscan` (in `GoodTakeKit`) runs the app's real code on a folder of images:
+`tkscan` (in `TidykeepKit`) runs the app's real code on a folder of images:
 
 ```
-gtscan features <folder|list.txt> <out.jsonl>    # per image: id, embedding, sharpness, aesthetics, isUtility, faceQualities, ms
-gtscan rank <images folder> <groups.json> <out.json>   # ranks given groups with PhotoGroup/ShotScorer, best first
-gtscan eval <dataset>/images --sensitivity balanced    # the full scan: candidates, SeriesBuilder, ranking
+tkscan features <folder|list.txt> <out.jsonl>    # per image: id, embedding, sharpness, aesthetics, isUtility, faceQualities, ms
+tkscan rank <images folder> <groups.json> <out.json>   # ranks given groups with PhotoGroup/ShotScorer, best first
+tkscan eval <dataset>/images --sensitivity balanced    # the full scan: candidates, SeriesBuilder, ranking
 ```
 
 `features` reads each image the way the app's folder source does (CGImageSource thumbnail with
@@ -114,8 +114,8 @@ The apple-* methods also save these ranking signals to `out/<dataset>/signals/<m
   (`"a|b"` to the fraction of annotators that called the pair a near-duplicate),
   `unscored_same` (pairs to leave out of pair metrics) and `variant_of` (a re-timed copy of
   another dataset, used only by the time window).
-- `images/truth.json` and `images/manifest.json`: the same groups and times in gtscan's format,
-  so `gtscan eval data/<name>/images` runs the app's pipeline on it.
+- `images/truth.json` and `images/manifest.json`: the same groups and times in tkscan's format,
+  so `tkscan eval data/<name>/images` runs the app's pipeline on it.
 
 Positive pairs are all pairs within a group; every other pair is negative.
 
@@ -136,8 +136,8 @@ which is what an app would have to ship.
 
 | Method | What | Metric | Dim | MB | ms | Code license | Weights license |
 |---|---|---|---|---|---|---|---|
-| `apple-fp2-soft` | **The app.** Vision feature print rev 2 of a softened (σ = 0.8% of long side) 1024 px copy, int8 | l2 | 768 | in iOS | 17* | Apache-2.0 (Good Take) | Apple OS component |
-| `apple-fp2-raw` | The same without softening | l2 | 768 | in iOS | 17* | Apache-2.0 (Good Take) | Apple OS component |
+| `apple-fp2-soft` | **The app.** Vision feature print rev 2 of a softened (σ = 0.8% of long side) 1024 px copy, int8 | l2 | 768 | in iOS | 17* | Apache-2.0 (Tidykeep) | Apple OS component |
+| `apple-fp2-raw` | The same without softening | l2 | 768 | in iOS | 17* | Apache-2.0 (Tidykeep) | Apple OS component |
 | `ahash` | Average hash (imagehash, 8x8) | hamming | 64 | 0 | 0.2 | BSD-2-Clause | none |
 | `phash` | DCT perceptual hash (imagehash) | hamming | 64 | 0 | 0.3 | BSD-2-Clause | none |
 | `dhash` | Difference hash (imagehash) | hamming | 64 | 0 | 0.2 | BSD-2-Clause | none |

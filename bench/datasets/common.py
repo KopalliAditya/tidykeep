@@ -3,8 +3,8 @@
 A dataset is a folder bench/data/<name>/ with:
   images/              flat folder of every image (unique names)
   truth.json           the shared ground truth (see README.md)
-  images/truth.json    gtscan-compatible truth (series/best/singles)
-  images/manifest.json gtscan-compatible capture dates
+  images/truth.json    tkscan-compatible truth (series/best/singles)
+  images/manifest.json tkscan-compatible capture dates
 """
 
 from __future__ import annotations
@@ -44,9 +44,9 @@ def write_dataset(
     preferences: list[list[str]] | None = None,
     pair_agreement: dict[str, float] | None = None,
     extra: dict | None = None,
-    write_gtscan: bool = True,
+    write_tkscan: bool = True,
 ) -> dict:
-    """Validate and write root/truth.json (and the gtscan copies in root/images/)."""
+    """Validate and write root/truth.json (and the tkscan copies in root/images/)."""
     img_dir = root / "images"
     on_disk = {p.name for p in img_dir.iterdir() if p.suffix.lower() in IMAGE_EXTS}
     images = sorted(images)
@@ -88,8 +88,8 @@ def write_dataset(
         truth.update(extra)
     write_json(root / "truth.json", truth)
 
-    if write_gtscan:
-        assert times is not None, "gtscan needs capture times"
+    if write_tkscan:
+        assert times is not None, "tkscan needs capture times"
         series = [{"files": g, "best": best.get(str(i), g[0])} for i, g in enumerate(groups)]
         singles = sorted(set(images) - seen)
         write_json(img_dir / "truth.json", {"series": series, "singles": singles})

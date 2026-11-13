@@ -2,7 +2,7 @@
 # Runs the package tests on a Mac. Works with full Xcode or with only the Command Line
 # Tools, which keep the swift-testing macro plugin where SwiftPM doesn't look for it.
 set -eu
-cd "$(dirname "$0")/../GoodTakeKit"
+cd "$(dirname "$0")/../TidykeepKit"
 
 plugins="$(xcode-select -p)/usr/lib/swift/host/plugins/testing"
 if [ -d "$plugins" ]; then

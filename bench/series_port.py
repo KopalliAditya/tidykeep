@@ -1,6 +1,6 @@
 """The app's grouping step, ported to Python so any embedding can be put inside its time window.
 
-This follows GoodTakeCore exactly:
+This follows TidykeepCore exactly:
   SeriesBuilder.candidates  photos with another photo within maxGap seconds (no bursts here)
   SeriesBuilder.build       walk in capture order (date, then file name); close open groups whose
                             last photo is more than maxGap earlier; join the open group (first photo
@@ -11,7 +11,7 @@ This follows GoodTakeCore exactly:
                             document, isUtility; folder photos are never favorites or edited)
   QuantizedEmbedding        int8 codes with one scale per vector, Euclidean distance
 
-evaluate.py checks this port against `gtscan scan` (the Swift code) group for group.
+evaluate.py checks this port against `tkscan scan` (the Swift code) group for group.
 """
 
 from __future__ import annotations

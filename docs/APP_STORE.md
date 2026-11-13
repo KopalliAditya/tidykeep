@@ -2,11 +2,11 @@
 
 ## Before the first build
 
-- [ ] **Pick the name.** "Good Take" is too close to Google's "Best Take". Check the name is
+- [ ] **Pick the name.** "Tidykeep" is too close to Google's "Best Take". Check the name is
       free in App Store Connect (names are unique) and search trademarks (USPTO) first.
       Changing it means: `CFBundleDisplayName` in `project.yml`, `AppInfo.name` in
-      `GoodTakeUI/AppModel.swift`, and the copy in `README.md` / `docs/PRIVACY.md`.
-- [ ] Bundle ID: `com.kopalliaditya.goodtake` (change in `project.yml` if wanted; it can't
+      `TidykeepUI/AppModel.swift`, and the copy in `README.md` / `docs/PRIVACY.md`.
+- [ ] Bundle ID: `com.kopalliaditya.tidykeep` (change in `project.yml` if wanted; it can't
       change after the first upload).
 - [ ] Set `DEVELOPMENT_TEAM` in `project.yml` and run `xcodegen generate`. A team picked in
       Xcode works too, but regenerating the project drops it.
@@ -47,7 +47,7 @@ These paths have never run, because they need iOS:
 
 ## Review notes (paste into App Review Information)
 
-> Good Take groups near-identical photos and suggests the best one to keep. All analysis is
+> Tidykeep groups near-identical photos and suggests the best one to keep. All analysis is
 > on-device with Vision; the app makes no network requests. To prefer frames where nobody
 > blinked it uses Vision's face capture quality score; it doesn't recognize people or store
 > face images or geometry. Removal goes through PhotoKit, so iOS shows its own confirmation

@@ -1,7 +1,7 @@
-"""bursts-profile: the app's own calibration set, built by `gtscan bursts`.
+"""bursts-profile: the app's own calibration set, built by `tkscan bursts`.
 
 Every image under /Library/User Pictures/*/ (the macOS account pictures) is copied into a flat
-temp folder, then `gtscan bursts` turns each source into a handheld burst (reframing, tilt,
+temp folder, then `tkscan bursts` turns each source into a handheld burst (reframing, tilt,
 exposure drift; every frame but one gets motion or focus blur) and keeps every third source
 as a one-off single. Its truth.json/manifest.json are converted to the shared format.
 
@@ -20,7 +20,7 @@ from pathlib import Path
 
 from common import BENCH, DATA, IMAGE_EXTS, safe_name, write_dataset
 
-GTSCAN = BENCH.parent / "GoodTakeKit/.build/release/gtscan"
+TKSCAN = BENCH.parent / "TidykeepKit/.build/release/tkscan"
 SOURCES = Path("/Library/User Pictures")
 
 
@@ -34,7 +34,7 @@ def main() -> None:
             print(f"{root} exists; use --force to rebuild")
             return
         shutil.rmtree(root)
-    assert GTSCAN.exists(), f"build gtscan first: {GTSCAN}"
+    assert TKSCAN.exists(), f"build tkscan first: {TKSCAN}"
 
     with tempfile.TemporaryDirectory() as tmp:
         flat = Path(tmp) / "sources"
@@ -50,7 +50,7 @@ def main() -> None:
                 n += 1
         print(f"{n} sources")
         images = root / "images"
-        subprocess.run([str(GTSCAN), "bursts", str(images), str(flat)], check=True)
+        subprocess.run([str(TKSCAN), "bursts", str(images), str(flat)], check=True)
 
     gt = json.loads((images / "truth.json").read_text())
     manifest = json.loads((images / "manifest.json").read_text())["files"]
@@ -62,20 +62,20 @@ def main() -> None:
         root,
         name="bursts-profile",
         kind="series",
-        source="gtscan bursts over the macOS account pictures in /Library/User Pictures (Apple system images)",
+        source="tkscan bursts over the macOS account pictures in /Library/User Pictures (Apple system images)",
         license="Apple system images shipped with macOS; for local evaluation only, do not redistribute",
         notes=(
-            "Synthetic handheld bursts made by GoodTakeKit BurstLibrary (seed 7): each source becomes 2-5 frames "
+            "Synthetic handheld bursts made by TidykeepKit BurstLibrary (seed 7): each source becomes 2-5 frames "
             "with 90-96% reframing, +-1.5 deg tilt, +-0.3 EV exposure drift; every frame but the best gets motion "
             "blur (radius 4-12 px at 1024) or Gaussian focus blur (sigma 1.5-3.5). Every 3rd source is a single "
             "(one handheld frame). Frames 1-3 s apart, moments 6-40 s apart. best = the one unblurred frame. "
-            "images/truth.json and images/manifest.json are exactly as gtscan wrote them."
+            "images/truth.json and images/manifest.json are exactly as tkscan wrote them."
         ),
         images=files,
         groups=groups,
         times=times,
         best=best,
-        write_gtscan=False,  # keep gtscan's own files
+        write_tkscan=False,  # keep tkscan's own files
     )
     print(json.dumps(summary, indent=1))
 

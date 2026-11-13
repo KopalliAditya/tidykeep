@@ -14,7 +14,7 @@ bench/.venv/bin/python bench/datasets/build_photo_triage_tight.py [--force]   # 
 bench/.venv/bin/python bench/datasets/build_california_nd.py    [--force]   # needs the photos, see below
 ```
 
-The bursts builder needs gtscan (`cd GoodTakeKit && swift build -c release --product gtscan`).
+The bursts builder needs tkscan (`cd TidykeepKit && swift build -c release --product tkscan`).
 The Photo Triage and copies builders read single files out of the 13.6 GB Kaggle zip with HTTP
 Range requests (`remotezip.py`). They fetch about 0.9 GB, need no account, and cache what they
 read under `bench/data/_raw/`. The GoPro builder reads about 0.25 GB of single frames out of
@@ -27,8 +27,8 @@ parquet shard. Every random choice uses a fixed seed, so a rebuild gives the sam
 bench/data/<name>/truth.json         name, kind, source, license, notes, images, groups, times,
                                      best?, preferences?, pair_agreement?, plus dataset extras
 bench/data/<name>/images/            every image, flat, unique names
-bench/data/<name>/images/truth.json  gtscan format {"series":[{"files","best"}],"singles"}
-bench/data/<name>/images/manifest.json  {"files":{name:{"date": ISO 8601}}}, read by gtscan
+bench/data/<name>/images/truth.json  tkscan format {"series":[{"files","best"}],"singles"}
+bench/data/<name>/images/manifest.json  {"files":{name:{"date": ISO 8601}}}, read by tkscan
 ```
 
 - `groups` are disjoint lists of 2 or more files.
@@ -43,7 +43,7 @@ bench/data/<name>/images/manifest.json  {"files":{name:{"date": ISO 8601}}}, rea
 
 | name | kind | images | groups | positive pairs | singles | times | best / preferences |
 |---|---|---|---|---|---|---|---|
-| bursts-profile | series | 106 | 29 | 119 | 14 | gtscan (synthetic) | best for 29 |
+| bursts-profile | series | 106 | 29 | 119 | 14 | tkscan (synthetic) | best for 29 |
 | photo-triage | series | 731 | 280 | 711 | 0 | synthetic | best for 195, 292 preferences |
 | copies | copies | 601 | 150 | 501 | 150 | synthetic | best = original |
 | gopro-bursts | series | 264 | 66 | 396 (+528 unscored) | 0 | synthetic | best for 66 |
@@ -57,7 +57,7 @@ bench/data/<name>/images/manifest.json  {"files":{name:{"date": ISO 8601}}}, rea
 
 **How it is built.**
 - The sources are copied to a flat folder named `Category-Name.heic`.
-- `gtscan bursts` then turns each still into 2-5 frames:
+- `tkscan bursts` then turns each still into 2-5 frames:
   - 90-96% reframing
   - up to 1.5° of tilt
   - up to 0.3 EV of exposure drift
@@ -66,8 +66,8 @@ bench/data/<name>/images/manifest.json  {"files":{name:{"date": ISO 8601}}}, rea
 - Frames are 1-3 s apart and moments 6-40 s apart.
 
 **Truth.**
-- groups = gtscan's series. best = the unblurred frame. times come from gtscan's manifest.
-- `images/truth.json` and `images/manifest.json` are kept exactly as gtscan wrote them.
+- groups = tkscan's series. best = the unblurred frame. times come from tkscan's manifest.
+- `images/truth.json` and `images/manifest.json` are kept exactly as tkscan wrote them.
 
 **License.** Apple system images, used for local evaluation only. Do not redistribute.
 

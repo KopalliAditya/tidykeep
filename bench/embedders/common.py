@@ -16,7 +16,7 @@ BENCH = Path(__file__).resolve().parent.parent
 DATA = BENCH / "data"
 OUT = BENCH / "out"
 MODELS = BENCH / "models"
-GTSCAN = BENCH.parent / "GoodTakeKit" / ".build" / "release" / "gtscan"
+TKSCAN = BENCH.parent / "TidykeepKit" / ".build" / "release" / "tkscan"
 
 # Every download lands in bench/models (gitignored). Set before torch / transformers import.
 os.environ.setdefault("HF_HOME", str(MODELS / "hf"))

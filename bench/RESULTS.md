@@ -1,6 +1,6 @@
 # Duplicate-photo benchmark: results
 
-This compares the signal Good Take uses to find duplicate photos (Apple Vision's feature print of a softened copy) with 13 open-source models and hashes, 19 variants in all once input-form and pooling variants are counted. It uses five public datasets, then runs the strongest embeddings inside the app's own grouping code. It also scores the app's best-shot ranking. Everything ran on one Mac on 2026-11-12. Every number comes from `bench/evaluate.py`. The full output is in `bench/out/results.json`, and the generated tables, copied here unchanged, are in `bench/out/tables.md`.
+This compares the signal Tidykeep uses to find duplicate photos (Apple Vision's feature print of a softened copy) with 13 open-source models and hashes, 19 variants in all once input-form and pooling variants are counted. It uses five public datasets, then runs the strongest embeddings inside the app's own grouping code. It also scores the app's best-shot ranking. Everything ran on one Mac on 2026-11-12. Every number comes from `bench/evaluate.py`. The full output is in `bench/out/results.json`, and the generated tables, copied here unchanged, are in `bench/out/tables.md`.
 
 This version replaces an earlier one after a review. The review's requests that were not done are listed under [Known limitations](#known-limitations).
 
@@ -21,7 +21,7 @@ This version replaces an earlier one after a review. The review's requests that 
   - Held-out real camera shake: it does its job, AP 0.930 against 0.631 for the same print without softening.
   - Sharp real series: it is the weakest learned signal, 0.792 against 0.923 raw and 0.954 for SSCD.
   - Screenshots: also weak, 0.541.
-- **Inside the app itself** (gtscan with SSCD as the link signal, at one threshold carried over from other data):
+- **Inside the app itself** (tkscan with SSCD as the link signal, at one threshold carried over from other data):
   - 227/280 real series found at pair precision 0.989. Today the app finds 209/280 at 0.989.
   - 66/66 real-blur moments, against 53/66 today.
   - 28/29 synthetic bursts, against 29/29 today (in-sample).
@@ -52,7 +52,7 @@ This version replaces an earlier one after a review. The review's requests that 
 - **Machine.** Apple M3 Max, macOS 27.0.1.
   - Python 3.12 in `bench/.venv`, with versions pinned in `requirements.txt`.
   - PyTorch on MPS for the neural models.
-  - The app's own Swift code, through a release build of `gtscan`, for the two Vision methods, the pipeline and the ranking.
+  - The app's own Swift code, through a release build of `tkscan`, for the two Vision methods, the pipeline and the ranking.
 - **Data and network.**
   - Only public datasets and the images that ship with macOS were used. No personal photos were read.
   - The network was used only to download datasets, model weights and packages. All inference ran locally.
@@ -87,9 +87,9 @@ This version replaces an earlier one after a review. The review's requests that 
   - The screenshots split (208 / 208 images, 50 / 50 copies) sets the screen-shaped threshold in the copy pass.
   - The photo-triage-tight split (367 / 364 images) sets the `window-dev` link inside the time window.
 - **Time window.**
-  - `series_port.py` is a Python port of the app's SeriesBuilder and Scanner.groups. It gives the same groups as gtscan in 94 of 94 checked runs.
+  - `series_port.py` is a Python port of the app's SeriesBuilder and Scanner.groups. It gives the same groups as tkscan in 94 of 94 checked runs.
   - It runs every embedding through the window, int8-quantized and compared by Euclidean distance, as the app stores them.
-  - Selected embeddings are also run through the Swift code itself, with `gtscan eval --features`.
+  - Selected embeddings are also run through the Swift code itself, with `tkscan eval --features`.
 - **One in-sample exception.** The app's softening and its sensitivity presets were calibrated on all of bursts-profile before this benchmark. `apple-fp2-soft` and the app pipeline are therefore in-sample on bursts-profile.
 
 ## Datasets
@@ -719,7 +719,7 @@ Pair P / R, exact groups, largest cluster, at the transfer threshold. single = c
 
 ## Inside the time window
 
-series_port.py (SeriesBuilder + Scanner.groups, checked against gtscan) with each embedding int8-quantized and compared by Euclidean distance as the app stores it. Configs (link/anchor): transfer = the transfer threshold as a link; window-dev = the link with the most recall at in-window pair precision ≥ 0.99 on photo-triage-tight:dev (real series packed 10-60 s apart); app = the app's own presets (apple prints only). Timing: balanced (maxGap 60 s, maxSpan 240 s) except 'app strict'. Cells: pair P / R. screenshots: only false pairs (its copies are hours to weeks after the original, so never in a window). The copies part dates each copy as its original, as Photos' Duplicate does; real copies (saved, downloaded, screenshotted) get a new date and never meet the window.
+series_port.py (SeriesBuilder + Scanner.groups, checked against tkscan) with each embedding int8-quantized and compared by Euclidean distance as the app stores it. Configs (link/anchor): transfer = the transfer threshold as a link; window-dev = the link with the most recall at in-window pair precision ≥ 0.99 on photo-triage-tight:dev (real series packed 10-60 s apart); app = the app's own presets (apple prints only). Timing: balanced (maxGap 60 s, maxSpan 240 s) except 'app strict'. Cells: pair P / R. screenshots: only false pairs (its copies are hours to weeks after the original, so never in a window). The copies part dates each copy as its original, as Photos' Duplicate does; real copies (saved, downloaded, screenshotted) get a new date and never meet the window.
 
 | Method | config (link/anchor) | bursts-profile:test | photo-triage:all | photo-triage-tight:test | gopro-bursts:all | screenshots:all | copies:test, copies dated as their original |
 |---|---|---|---|---|---|---|---|
@@ -794,7 +794,7 @@ Oracle in-window sweeps (link picked on the set itself): recall at pair precisio
 | `dinov2-small-pad` | 1.000 / 1.000 | 0.723 / 0.932 | 0.375 / 0.931 | 0.634 / 0.894 |
 | `dinov3-small-squash` | 1.000 / 1.000 | 0.750 / 0.944 | 0.427 / 0.948 | 0.806 / 0.892 |
 
-Port vs gtscan (the Swift code): 94 of 94 runs give identical groups.
+Port vs tkscan (the Swift code): 94 of 94 runs give identical groups.
 
 - **Hard in-window negatives.** photo-triage-tight packs real series 10-60 s apart, so unrelated scenes from one album meet inside the 60 s window. Its dev half sets `window-dev`; its test half is the held-out check.
 - **Sharp real series** (photo-triage-tight test, pair precision about 0.985):
@@ -806,12 +806,12 @@ Port vs gtscan (the Swift code): 94 of 94 runs give identical groups.
   - bursts-profile test: the raw print scores 0.485; the softened print and SSCD score 1.000.
   - Real blur: SSCD scores 1.000 / 0.990 and SSCD-pad320 1.000 / 1.000. The softened print scores 0.708 / 0.932 at balanced and 1.000 / 0.841 at strict. The raw print scores 0.771 / 0.543, and imagededup-cnn 0.842 / 0.861.
   - Only SSCD (any input form) is near the top on both blurry and sharp series inside the window.
-- **The test-half run is sparser than a real library.** The window runs on test-half images only, so the dev-half series drop out of the timeline and test series sit farther apart than in the full set. The gtscan whole-set run below is the denser check.
+- **The test-half run is sparser than a real library.** The window runs on test-half images only, so the dev-half series drop out of the timeline and test series sit farther apart than in the full set. The tkscan whole-set run below is the denser check.
 - **Copies dated as their original** (as Photos' Duplicate does): SSCD scores 1.000 / 1.000, the softened print 1.000 / 0.844 at balanced.
 - **Screenshots.** Only 1-18 false pairs per run fall inside a window, because the copies are hours to weeks after their originals.
 - No CIs were computed for window runs.
 
-## gtscan eval --features: other embeddings inside the app
+## tkscan eval --features: other embeddings inside the app
 
 The app's GroupingEval (pair P / R, series found, keeper accuracy), balanced timing, link/anchor as calibrated above. Its pair precision counts gopro other-moment pairs as wrong.
 
@@ -842,7 +842,7 @@ The app's GroupingEval (pair P / R, series found, keeper accuracy), balanced tim
   - SSCD at its carried-over link scores pair precision 0.989 and finds 227/280 series. The app today (balanced) scores 0.989 with 209/280.
   - SSCD's `window-dev` link finds 242/280 but drops precision to 0.967. The link set on the sparser dev half is too loose for the full timeline, so it has to be set on a denser real timeline.
   - DINOv3-small-squash finds 246/280 at 0.961, and SigLIP 2 237/280 at 0.936. Both are less precise.
-- **Real blur.** gtscan does not know about unscored pairs, so its pair precision counts the other moment of the same clip as wrong. SSCD finds all 66 moments; the app today finds 53.
+- **Real blur.** tkscan does not know about unscored pairs, so its pair precision counts the other moment of the same clip as wrong. SSCD finds all 66 moments; the app today finds 53.
   - Keeper accuracy drops to 0.58-0.79 for most embeddings when the two moments of a clip are merged. One group then holds two sharp frames, and only one of them counts as best.
 - **Synthetic bursts.** SSCD at `window-dev` finds 29/29 with keeper accuracy 1.000.
 - **Screenshots.** 0/100 for every embedding: copies come hours later, and on a phone the app does not scan screenshots anyway.
@@ -893,11 +893,11 @@ Two distances; or the raw print's distance with the two photos' sharpness gap |s
 - **Softened + raw print,** both free in iOS: real series 0.932, but real blur only 0.752, below the softened print alone.
 - No CIs were computed for the fusions.
 
-## App pipeline (gtscan eval: time window, SeriesBuilder, ShotScorer)
+## App pipeline (tkscan eval: time window, SeriesBuilder, ShotScorer)
 
-Missed pairs: never analyzed (no other photo within maxGap) / farther apart than maxSpan / within the window but not grouped. Scored P leaves out unscored pairs (count in parentheses: gopro other-moment pairs grouped). Keeper accuracy (gtscan) counts every found series, with the first file as 'best' where none is known; the next column counts only series whose best is known. Port = series_port.py gives the same groups.
+Missed pairs: never analyzed (no other photo within maxGap) / farther apart than maxSpan / within the window but not grouped. Scored P leaves out unscored pairs (count in parentheses: gopro other-moment pairs grouped). Keeper accuracy (tkscan) counts every found series, with the first file as 'best' where none is known; the next column counts only series whose best is known. Port = series_port.py gives the same groups.
 
-| Dataset | sensitivity | analyzed | pair P | pair R | scored P (unscored) | series found | keeper acc. (gtscan) | keeper acc. (known best) | missed: not analyzed / span / visual | port |
+| Dataset | sensitivity | analyzed | pair P | pair R | scored P (unscored) | series found | keeper acc. (tkscan) | keeper acc. (known best) | missed: not analyzed / span / visual | port |
 |---|---|---|---|---|---|---|---|---|---|---|
 | bursts-profile | strict | 105/106 | 1.000 | 0.975 | 1.000 (0) | 29/29 | 1.000 | 1.000 (n=29) | 0 / 0 / 3 | yes |
 | bursts-profile | balanced | 106/106 | 1.000 | 1.000 | 1.000 (0) | 29/29 | 1.000 | 1.000 (n=29) | 0 / 0 / 0 | yes |
@@ -1020,8 +1020,8 @@ ms/img per dataset (bursts-profile / photo-triage / copies / gopro-bursts / scre
 
 | Method | metric | dim | ms/img | device | model MB (fp32) | code license | weights license |
 |---|---|---|---|---|---|---|---|
-| `apple-fp2-soft` | l2 | 768 | 17.1 / 21.0 / 21.2 / 25.2 / 21.0 | vision | 0 (in iOS) | Apache-2.0 (Good Take); Vision is an Apple OS framework | Apple OS component (ships with iOS/macOS, no separate weights) |
-| `apple-fp2-raw` | l2 | 768 | 16.8 / 20.0 / 19.4 / 17.0 / 18.1 | vision | 0 (in iOS) | Apache-2.0 (Good Take); Vision is an Apple OS framework | Apple OS component (ships with iOS/macOS, no separate weights) |
+| `apple-fp2-soft` | l2 | 768 | 17.1 / 21.0 / 21.2 / 25.2 / 21.0 | vision | 0 (in iOS) | Apache-2.0 (Tidykeep); Vision is an Apple OS framework | Apple OS component (ships with iOS/macOS, no separate weights) |
+| `apple-fp2-raw` | l2 | 768 | 16.8 / 20.0 / 19.4 / 17.0 / 18.1 | vision | 0 (in iOS) | Apache-2.0 (Tidykeep); Vision is an Apple OS framework | Apple OS component (ships with iOS/macOS, no separate weights) |
 | `ahash` | hamming | 64 | 0.2 / 0.4 / 0.4 / 0.4 / 1.0 | cpu | 0.0 | BSD-2-Clause (imagehash) | none (no learned weights) |
 | `phash` | hamming | 64 | 0.3 / 0.5 / 0.5 / 0.6 / 1.4 | cpu | 0.0 | BSD-2-Clause (imagehash) | none (no learned weights) |
 | `dhash` | hamming | 64 | 0.2 / 0.4 / 0.3 / 0.5 / 1.0 | cpu | 0.0 | BSD-2-Clause (imagehash) | none (no learned weights) |
@@ -1061,7 +1061,7 @@ ms/img per dataset (bursts-profile / photo-triage / copies / gopro-bursts / scre
 - Cross-dataset pairs within `apple-fp2-soft`'s transfer threshold: 0 (closest photo-triage/pt004818-02.jpg vs copies/cp81178.jpg at 0.442). Pairs are only formed within a dataset, so these do not enter any metric.
 - Thresholds come only from the dev halves (transfer, fusion, the in-window link, the screen threshold). Columns marked oracle are picked on the set they are reported on.
 
-- **Port check.** `series_port.py` and gtscan give identical groups in 94 of 94 runs.
+- **Port check.** `series_port.py` and tkscan give identical groups in 94 of 94 runs.
 - **Recomputed outside `evaluate.py`** from the saved embeddings with scikit-learn:
   - gopro-bursts AP for the softened print, raw print and SSCD: 0.930 / 0.631 / 0.984, with the 528 unscored pairs left out;
   - screenshots AP for SSCD and SigLIP 2: 0.894 / 0.912;
@@ -1082,7 +1082,7 @@ The statistical top group by AP lists the members whose gap to the leader has a 
 - **screenshots** (real Android screens): SigLIP 2 0.912, SSCD-skew320 0.908, SSCD 0.894, SSCD-pad320 0.871, DINOv3-small-squash 0.863. None of them is usable at one threshold.
 - **Inside the window** (photo-triage-tight test, pair precision about 0.985), by recall: imagededup-cnn 0.867, SigLIP 2 0.821, DINOv3-small-squash 0.818, SSCD-pad320 0.804, raw print 0.801 (at precision 1.000), DINOv2-small 0.798, SSCD 0.790, softened print 0.660. These have no CIs.
 
-### Where Good Take's signal wins
+### Where Tidykeep's signal wins
 
 - **Blur.** It is perfect on synthetic bursts (in-sample). On held-out real camera shake it scores 0.930 against 0.631 for the raw print. Inside the window at strict it scores 1.000 / 0.841 on real blur.
 - **Precision.** On unseen real series it keeps 0.993 precision at the carried-over threshold, about 4 false calls per million unrelated pairs.
@@ -1162,7 +1162,7 @@ The statistical top group by AP lists the members whose gap to the leader has a 
 - **screenshots** are Android screens from Rico (apps from about 2017), 1-3 per app, each with at most one copy. The iPhone screenshot copies are simulated.
 - **Cross-dataset similar shots.** The copies originals come from other series of the same personal albums as photo-triage. Pairs are only formed within a dataset, so this does not affect any metric.
 - **Transfer and fusion** were fitted on small synthetic dev halves (51 + 231 duplicate pairs). A threshold fitted on real data could differ.
-- **Missing CIs.** Window runs, gtscan runs and fusions have none.
+- **Missing CIs.** Window runs, tkscan runs and fusions have none.
 - **Best shot.** The 292 preference pairs come from 136 series, and top-1 from 195 series. Crowd agreement on a single best frame is limited, so top-1 stays low for every ranker.
 
 ## Known limitations
@@ -1180,16 +1180,16 @@ A review asked for the following. Each item was not done, or only partly done, f
   - The fixed-square rows show what a fixed-shape conversion would score.
 - **The time-window results depend on synthesized dates.** No public dataset gives real capture times for the series and unrelated shots of one library.
   - photo-triage-tight is a stress test of that date model, not a measurement of real libraries.
-  - Its test-half runs are sparser than the full timeline. The whole-set gtscan run is reported next to them.
+  - Its test-half runs are sparser than the full timeline. The whole-set tkscan run is reported next to them.
 - **California-ND** is not included, because its photos are password-protected and the password is only given by email.
 - **Market claim dropped.** The earlier "most duplicate cleaners are built on hashes" was never measured. No commercial cleaner was tested.
-- **Statistical tests are limited to AP.** The in-window and gtscan comparisons have no CIs, so differences of a few points there (for example SSCD 0.790 against DINOv2-small 0.798) should not be read as rankings.
+- **Statistical tests are limited to AP.** The in-window and tkscan comparisons have no CIs, so differences of a few points there (for example SSCD 0.790 against DINOv2-small 0.798) should not be read as rankings.
 - **Mutual nearest-neighbour results on screenshots are flattered** by every screen there having exactly one copy. On copies, with 1-3 copies each, the same rule finds about 30% of pairs.
 
 ## Reproduce
 
 ```
-cd GoodTakeKit && swift build -c release --product gtscan && cd ..       # the app's code, for the apple-* methods and pipeline
+cd TidykeepKit && swift build -c release --product tkscan && cd ..       # the app's code, for the apple-* methods and pipeline
 bench/.venv/bin/python bench/datasets/build_gopro_bursts.py               # likewise build_bursts_profile, build_photo_triage,
 bench/.venv/bin/python bench/datasets/build_screenshots.py                # build_copies, build_photo_triage_tight
 bench/.venv/bin/python bench/embed.py --dataset all --method all          # embeddings, signals
@@ -1198,4 +1198,4 @@ bench/.venv/bin/python bench/evaluate.py                                  # abou
 scripts/test.sh                                                           # the Swift tests (69 pass)
 ```
 
-`evaluate.py` caches gtscan output in `bench/out/<dataset>/app/` (`--force-app` reruns it). `--skip-app` scores the embeddings only.
+`evaluate.py` caches tkscan output in `bench/out/<dataset>/app/` (`--force-app` reruns it). `--skip-app` scores the embeddings only.

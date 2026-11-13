@@ -1,4 +1,4 @@
-# Good Take
+# Tidykeep
 
 A free iPhone app that finds runs of near-identical photos (the five shots you took to get
 one good one), picks the best of each run, and suggests removing the rest. Everything runs
@@ -7,14 +7,14 @@ on the phone with Apple's Vision framework. No account, no ads, no analytics, no
 Built VoiceOver-first: every screen, photo and decision has a spoken label, and the app
 says *why* it picked a photo ("Best pick: sharpest and best faces").
 
-> "Good Take" is a working name. Google ships a feature called "Best Take", so pick a
+> "Tidykeep" is a working name. Google ships a feature called "Best Take", so pick a
 > distinct name before submitting (see [docs/APP_STORE.md](docs/APP_STORE.md)).
 
 ## How it works
 
 1. **Candidates.** Only photos taken within a minute of another photo are looked at, so a
    big library is mostly skipped before any analysis.
-2. **Analysis** (`GoodTakeVision`), once per photo and cached on the device:
+2. **Analysis** (`TidykeepVision`), once per photo and cached on the device:
    - Vision feature print (revision 2) of a lightly blurred copy. The blur makes grouping
      ignore shake and focus blur: blurred frames of a moment land near the sharp one.
    - Vision aesthetics score and its "utility" (document, screenshot) flag.
@@ -42,22 +42,22 @@ says *why* it picked a photo ("Best pick: sharpest and best faces").
 
 ```
 App/                    iOS app entry point, Info.plist, privacy manifest, assets
-GoodTakeKit/            Swift package with all the code and tests
-  GoodTakeCore          models, grouping, ranking, cache, scanner (no Apple frameworks beyond Foundation)
-  GoodTakeVision        Vision analysis and the focus measure
-  GoodTakePhotoKit      the photo library (PhotoKit)
-  GoodTakeUI            SwiftUI screens and AppModel
-  GoodTakeFolderSource  a folder of images as a photo library, for tests and gtscan
-  GoodTakeTestSupport   synthetic and real-photo test libraries with known answers
-  gtscan                command-line tool for calibration
-project.yml             XcodeGen spec; GoodTake.xcodeproj is generated from it
+TidykeepKit/            Swift package with all the code and tests
+  TidykeepCore          models, grouping, ranking, cache, scanner (no Apple frameworks beyond Foundation)
+  TidykeepVision        Vision analysis and the focus measure
+  TidykeepPhotoKit      the photo library (PhotoKit)
+  TidykeepUI            SwiftUI screens and AppModel
+  TidykeepFolderSource  a folder of images as a photo library, for tests and tkscan
+  TidykeepTestSupport   synthetic and real-photo test libraries with known answers
+  tkscan                command-line tool for calibration
+project.yml             XcodeGen spec; Tidykeep.xcodeproj is generated from it
 scripts/                tests, icon, network check
 docs/                   App Store checklist, privacy policy
 ```
 
 ## Build and run (Mac with Xcode 26 or later)
 
-1. Open `GoodTake.xcodeproj`. If you change `project.yml`, regenerate it with
+1. Open `Tidykeep.xcodeproj`. If you change `project.yml`, regenerate it with
    `brew install xcodegen && xcodegen generate`.
 2. Put your team ID in `DEVELOPMENT_TEAM` in `project.yml` and regenerate, or choose the
    team under Signing & Capabilities (regenerating drops a team chosen there).
@@ -77,9 +77,9 @@ The suites:
 
 | Suite | What it covers |
 |---|---|
-| GoodTakeCoreTests | grouping, ranking, safety rules, cache, scanner (with fakes), thermal back-off |
-| GoodTakeVisionTests | feature print, distance against Vision's own, focus measure, softening, document flag |
-| GoodTakeScanTests | end to end on generated and real photos, folder source, AppModel flow, VoiceOver copy, screens render |
+| TidykeepCoreTests | grouping, ranking, safety rules, cache, scanner (with fakes), thermal back-off |
+| TidykeepVisionTests | feature print, distance against Vision's own, focus measure, softening, document flag |
+| TidykeepScanTests | end to end on generated and real photos, folder source, AppModel flow, VoiceOver copy, screens render |
 
 The real-photo test uses the profile pictures that ship with macOS (`/Library/User Pictures`)
 and is skipped where they're missing.
@@ -87,8 +87,8 @@ and is skipped where they're missing.
 ## Calibration
 
 Thresholds were set on synthetic bursts made from real photos (not drawn shapes), so the blur
-in them is simulated. `gtscan bursts` turns real images into handheld bursts (reframing, tilt, exposure drift, then motion or focus blur on every
-frame but one) with a `truth.json`. `gtscan calibrate` and `gtscan sweep` then measure
+in them is simulated. `tkscan bursts` turns real images into handheld bursts (reframing, tilt, exposure drift, then motion or focus blur on every
+frame but one) with a `truth.json`. `tkscan calibrate` and `tkscan sweep` then measure
 distances and try thresholds.
 
 | Library | Setting | Pair precision | Pair recall | Keeper accuracy | Series |
@@ -110,12 +110,12 @@ On the profile pictures, frames of the same moment are 0.09–0.45 apart and dif
   out pulled the best frame out of its own group.
 
 Not yet measured: real faces (none in the calibration photos) and real phone bursts. Run
-`gtscan` on an export of your own photos before trusting the defaults:
+`tkscan` on an export of your own photos before trusting the defaults:
 
 ```
-cd GoodTakeKit
-swift run gtscan scan ~/Pictures/export --sensitivity balanced
-swift run gtscan bursts /tmp/lib <folder of sources> && swift run gtscan eval /tmp/lib
+cd TidykeepKit
+swift run tkscan scan ~/Pictures/export --sensitivity balanced
+swift run tkscan bursts /tmp/lib <folder of sources> && swift run tkscan eval /tmp/lib
 ```
 
 ## Notes

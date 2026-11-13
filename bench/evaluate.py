@@ -3,7 +3,7 @@
     bench/.venv/bin/python bench/evaluate.py [--datasets a,b] [--methods a,b] [--boot 1000] [--force-app] [--skip-app]
 
 Reads bench/data/<ds>/truth.json and bench/out/<ds>/<method>.npz + .json (written by embed.py).
-Runs gtscan for the app pipeline and the best-shot ranking; its outputs are cached in
+Runs tkscan for the app pipeline and the best-shot ranking; its outputs are cached in
 bench/out/<ds>/app/ (--force-app reruns them). Writes bench/out/results.json (everything) and
 bench/out/tables.md (the tables in RESULTS.md).
 
@@ -21,18 +21,18 @@ bench/out/tables.md (the tables in RESULTS.md).
    broken down by transform.
 3. Fusion: logistic regression on two methods' distances, fitted on the dev halves only, scored on
    the test halves and the other datasets.
-4. App pipeline: `gtscan eval` and `gtscan scan --json` (capture-time window included) at strict and
+4. App pipeline: `tkscan eval` and `tkscan scan --json` (capture-time window included) at strict and
    balanced (and loose for copies), with a breakdown of what the time window never looks at.
-5. Best shot: `gtscan rank` (the app's ShotScorer) against human preferences and known best frames,
+5. Best shot: `tkscan rank` (the app's ShotScorer) against human preferences and known best frames,
    compared with random, capture order, sharpness alone, Vision aesthetics alone and the LAION
    aesthetic predictor (bench/aesthetic.py).
 6. Integrity: ids match truth.json, distance matrices are symmetric with a zero diagonal, cosine
    inputs are unit vectors, hashes are 0/1 bits, AP/AUC match scikit-learn, byte-identical and
    near-identical images across datasets.
 7. Time window: every embedding put through the app's grouping step (series_port.py, a port of
-   SeriesBuilder + Scanner.groups checked group for group against gtscan), with its link distance
+   SeriesBuilder + Scanner.groups checked group for group against tkscan), with its link distance
    calibrated two ways (the transfer threshold; and a sweep on the dev half of photo-triage-tight,
-   real series packed minutes apart), plus `gtscan eval --features` runs with other embeddings.
+   real series packed minutes apart), plus `tkscan eval --features` runs with other embeddings.
 8. Copy pass: library-wide linking without the window, with single, complete and mutual-nearest-
    neighbour linkage and a separate threshold for screen-shaped pairs.
 
@@ -61,7 +61,7 @@ import numpy as np
 BENCH = Path(__file__).resolve().parent
 DATA = BENCH / "data"
 OUT = BENCH / "out"
-GTSCAN = BENCH.parent / "GoodTakeKit" / ".build" / "release" / "gtscan"
+TKSCAN = BENCH.parent / "TidykeepKit" / ".build" / "release" / "tkscan"
 
 DEFAULT_DATASETS = ("bursts-profile", "photo-triage", "copies", "gopro-bursts", "screenshots", "photo-triage-tight",
                     "california-nd")
@@ -70,7 +70,7 @@ SPLIT_SEED = 2026
 BOOT_SEED = 1729
 TARGET_PRECISION = 0.99
 APP = "apple-fp2-soft"  # the app's grouping signal, the reference for paired differences
-# The app's sensitivity presets (GoodTakeCore/Models.swift): maxGap s, maxSpan s, link, anchor.
+# The app's sensitivity presets (TidykeepCore/Models.swift): maxGap s, maxSpan s, link, anchor.
 SENSITIVITY = {"strict": (30, 120, 0.40, 0.50), "balanced": (60, 240, 0.55, 0.65), "loose": (180, 900, 0.70, 0.80)}
 APP_RUNS = {"copies": ("strict", "balanced", "loose"), "screenshots": ("strict", "balanced", "loose")}  # others: 2
 FPR_LEVELS = (1e-2, 1e-3, 1e-4)  # recall at these false-positive rates
@@ -82,10 +82,10 @@ ANCHOR_RATIO_L2 = 0.65 / 0.55
 WINDOW_TIMING = SENSITIVITY["balanced"][:2]  # maxGap, maxSpan used with every calibrated embedding
 WINDOW_DEV = "photo-triage-tight"  # its dev half calibrates the in-window link
 WINDOW_TARGET = 0.99  # in-window pair precision the in-window link is picked for
-# Embeddings run through gtscan itself (--features) in the time window.
-GTSCAN_FEATURE_METHODS = ["apple-fp2-soft", "apple-fp2-raw", "sscd", "sscd-pad320", "dinov2-small",
+# Embeddings run through tkscan itself (--features) in the time window.
+TKSCAN_FEATURE_METHODS = ["apple-fp2-soft", "apple-fp2-raw", "sscd", "sscd-pad320", "dinov2-small",
                           "dinov2-small-pad", "dinov3-small", "dinov3-small-squash", "siglip2-base"]
-GTSCAN_FEATURE_DATASETS = ["bursts-profile", "photo-triage-tight", "gopro-bursts", "screenshots"]
+TKSCAN_FEATURE_DATASETS = ["bursts-profile", "photo-triage-tight", "gopro-bursts", "screenshots"]
 # Copy pass: a pair is screen-shaped when both images are portrait with height/width >= this
 # (16:10 or taller: phone screens are 16:9 to 19.5:9, 1.60 with the system bars cut off; photos are 4:3 or 3:2).
 SCREEN_ASPECT = 1.6
@@ -508,21 +508,21 @@ def copy_pass(truth: Truth, D: np.ndarray, d: np.ndarray, S: np.ndarray, rule: s
     return score_components(truth, S, labels)
 
 
-# ---- gtscan ------------------------------------------------------------------------------
+# ---- tkscan ------------------------------------------------------------------------------
 
 
-def gtscan(args: list[str], cache: Path, force: bool) -> str:
+def tkscan(args: list[str], cache: Path, force: bool) -> str:
     if cache.exists() and not force:
         return cache.read_text()
-    if not GTSCAN.exists():
-        raise RuntimeError(f"gtscan not built: {GTSCAN}")
+    if not TKSCAN.exists():
+        raise RuntimeError(f"tkscan not built: {TKSCAN}")
     t = time.perf_counter()
-    p = subprocess.run([str(GTSCAN), *args], capture_output=True, text=True)
+    p = subprocess.run([str(TKSCAN), *args], capture_output=True, text=True)
     if p.returncode != 0:
-        raise RuntimeError(f"gtscan {' '.join(args)} failed ({p.returncode}): {p.stderr[-600:]}")
+        raise RuntimeError(f"tkscan {' '.join(args)} failed ({p.returncode}): {p.stderr[-600:]}")
     cache.parent.mkdir(parents=True, exist_ok=True)
     cache.write_text(p.stdout)
-    print(f"  gtscan {args[0]} {Path(args[1]).parent.name} {' '.join(args[2:])}: {time.perf_counter() - t:.0f}s",
+    print(f"  tkscan {args[0]} {Path(args[1]).parent.name} {' '.join(args[2:])}: {time.perf_counter() - t:.0f}s",
           file=sys.stderr)
     return p.stdout
 
@@ -548,9 +548,9 @@ def jaccard(a: set, b: set) -> float:
 
 
 def app_run(ds: str, truth: Truth, sens: str, force: bool, extra: tuple = (), tag: str = "") -> dict:
-    """One `gtscan eval` + `gtscan scan --json` on the dataset's folder, scored two ways.
+    """One `tkscan eval` + `tkscan scan --json` on the dataset's folder, scored two ways.
 
-    extra: more gtscan arguments (--features, --link, --anchor); tag names the cached outputs."""
+    extra: more tkscan arguments (--features, --link, --anchor); tag names the cached outputs."""
     folder = DATA / ds / "images"
     dates = manifest_dates(ds)
     true_pairs = {tuple(sorted((truth.images[i], truth.images[j]))) for g in truth.groups
@@ -559,13 +559,13 @@ def app_run(ds: str, truth: Truth, sens: str, force: bool, extra: tuple = (), ta
         tuple(sorted((truth.images[i], truth.images[j]))) for i, j in zip(truth.UI, truth.UJ)}
     best = {int(k): v for k, v in truth.raw.get("best", {}).items()}
     max_gap, max_span, link, anchor = SENSITIVITY[sens]
-    text = gtscan(["eval", str(folder), "--sensitivity", sens, *extra], OUT / ds / "app" / f"eval-{sens}{tag}.txt", force)
+    text = tkscan(["eval", str(folder), "--sensitivity", sens, *extra], OUT / ds / "app" / f"eval-{sens}{tag}.txt", force)
     m = re.search(r"pair precision ([\d.]+)\s+pair recall ([\d.]+)\s+keeper accuracy ([\d.]+)\s+"
                   r"series found (\d+)/(\d+)", text)
     assert m, text[:300]
     official = {"pair_precision": float(m[1]), "pair_recall": float(m[2]), "keeper_accuracy": float(m[3]),
                 "series_found": int(m[4]), "series_total": int(m[5])}
-    scan = json.loads(gtscan(["scan", str(folder), "--sensitivity", sens, "--json", *extra],
+    scan = json.loads(tkscan(["scan", str(folder), "--sensitivity", sens, "--json", *extra],
                              OUT / ds / "app" / f"scan-{sens}{tag}.json", force))
     groups = [g["ranked"] for g in scan["groups"]]
     pred_pairs = {tuple(sorted((a, b))) for g in groups for k, a in enumerate(g) for b in g[k + 1:]}
@@ -618,7 +618,7 @@ def app_pipeline(ds: str, truth: Truth, force: bool) -> dict:
 
 
 def write_features(truth: Truth, method: str, path: Path) -> Path:
-    """A --features file for gtscan: this embedding, with the app's own quality signals."""
+    """A --features file for tkscan: this embedding, with the app's own quality signals."""
     if path.exists():
         return path
     src = truth.source
@@ -629,7 +629,7 @@ def write_features(truth: Truth, method: str, path: Path) -> Path:
     if side["metric"] == "cosine":
         X /= np.linalg.norm(X, axis=1, keepdims=True)
     elif side["metric"] != "l2":
-        raise ValueError(f"{method}: gtscan compares embeddings by Euclidean distance")
+        raise ValueError(f"{method}: tkscan compares embeddings by Euclidean distance")
     sig = json.loads((OUT / src / "signals" / f"{APP}.json").read_text())["signals"]
     path.parent.mkdir(parents=True, exist_ok=True)
     with path.open("w") as fh:
@@ -746,7 +746,7 @@ def best_shot(ds: str, truth: Truth, force: bool, boot: int) -> dict | None:
     gfile.write_text(json.dumps({"groups": capture}) + "\n")
     rank_path = OUT / ds / "app" / "rank.json"
     if force or not rank_path.exists():
-        gtscan(["rank", str(DATA / ds / "images"), str(gfile), str(rank_path)], OUT / ds / "app" / "rank.log", True)
+        tkscan(["rank", str(DATA / ds / "images"), str(gfile), str(rank_path)], OUT / ds / "app" / "rank.log", True)
     ranked = json.loads(rank_path.read_text())["groups"]
     assert len(ranked) == len(capture) and all(set(r["ranked"]) == set(c) for r, c in zip(ranked, capture))
     signals = json.loads((OUT / ds / "signals" / f"{APP}.json").read_text())["signals"]
@@ -919,8 +919,8 @@ def main() -> int:
     ap.add_argument("--datasets", default=",".join(DEFAULT_DATASETS))
     ap.add_argument("--methods", default="all")
     ap.add_argument("--boot", type=int, default=1000, help="bootstrap resamples")
-    ap.add_argument("--force-app", action="store_true", help="rerun gtscan eval/scan/rank")
-    ap.add_argument("--skip-app", action="store_true", help="skip every gtscan section (pipeline, best shot, --features)")
+    ap.add_argument("--force-app", action="store_true", help="rerun tkscan eval/scan/rank")
+    ap.add_argument("--skip-app", action="store_true", help="skip every tkscan section (pipeline, best shot, --features)")
     args = ap.parse_args()
     t0 = time.perf_counter()
     sys.path.insert(0, str(BENCH))
@@ -1300,7 +1300,7 @@ def main() -> int:
     sweep_keys = {k for k, ds, _, _ in wparts if not k.startswith(("photo-triage:", "copies:"))}
     calib_key = f"{WINDOW_DEV}:dev"
     window = {"parts": {k: {"dataset": ds, "images": int(len(idx))} for k, ds, idx, _ in wparts},
-              "calibration_part": calib_key, "methods": {}, "gtscan_check": []}
+              "calibration_part": calib_key, "methods": {}, "tkscan_check": []}
     wcache: dict = {}
 
     def wmat(ds: str, m: str) -> np.ndarray:
@@ -1338,7 +1338,7 @@ def main() -> int:
 
     # 4. App pipeline and 5. best shot.
     if not args.skip_app:
-        print("app pipeline (gtscan)", file=sys.stderr)
+        print("app pipeline (tkscan)", file=sys.stderr)
         results["app_pipeline"] = {ds: app_pipeline(ds, truths[ds], args.force_app) for ds in names}
         for ds, runs in results["app_pipeline"].items():
             for sens, a in runs.items():  # the port must give the app's groups exactly
@@ -1347,16 +1347,16 @@ def main() -> int:
                                   (cfg[0], cfg[1], np.float32(cfg[2]), np.float32(cfg[3])), utility[ds])
                 port = sorted(sorted(truths[ds].images[i] for i in x) for x in g)
                 a["port_matches"] = port == sorted(a["groups"])
-                window["gtscan_check"].append({"dataset": ds, "method": APP, "config": f"app {sens} (analyzer)",
+                window["tkscan_check"].append({"dataset": ds, "method": APP, "config": f"app {sens} (analyzer)",
                                                "match": a["port_matches"], "groups": len(port)})
         print("best shot", file=sys.stderr)
         results["best_shot"] = {ds: r for ds in pair_names
                                 if (r := best_shot(ds, truths[ds], args.force_app, args.boot))}
-        # Other embeddings inside the app itself: gtscan eval/scan --features, link/anchor as calibrated.
-        print("gtscan --features", file=sys.stderr)
+        # Other embeddings inside the app itself: tkscan eval/scan --features, link/anchor as calibrated.
+        print("tkscan --features", file=sys.stderr)
         feat_runs = {}
-        for m in [x for x in GTSCAN_FEATURE_METHODS if x in methods]:
-            for ds in [x for x in GTSCAN_FEATURE_DATASETS if x in names]:
+        for m in [x for x in TKSCAN_FEATURE_METHODS if x in methods]:
+            for ds in [x for x in TKSCAN_FEATURE_DATASETS if x in names]:
                 tr = truths[ds]
                 feat = write_features(tr, m, OUT / ds / "app" / f"features-{m}.jsonl")
                 for cname, cfg in window["methods"][m]["configs"].items():
@@ -1371,13 +1371,13 @@ def main() -> int:
                                       (cfg[0], cfg[1], np.float32(L), np.float32(A)), utility[ds])
                     port = sorted(sorted(tr.images[i] for i in x) for x in g)
                     r["port_matches"] = port == sorted(r["groups"])
-                    window["gtscan_check"].append({"dataset": ds, "method": m, "config": cname,
+                    window["tkscan_check"].append({"dataset": ds, "method": m, "config": cname,
                                                    "match": r["port_matches"], "groups": len(port)})
                     feat_runs.setdefault(m, {}).setdefault(cname, {})[ds] = {
                         k: v for k, v in r.items() if k not in ("groups",)}
-        results["gtscan_features"] = feat_runs
-        bad = [c for c in window["gtscan_check"] if not c["match"]]
-        print(f"  port vs gtscan: {len(window['gtscan_check']) - len(bad)}/{len(window['gtscan_check'])} identical",
+        results["tkscan_features"] = feat_runs
+        bad = [c for c in window["tkscan_check"] if not c["match"]]
+        print(f"  port vs tkscan: {len(window['tkscan_check']) - len(bad)}/{len(window['tkscan_check'])} identical",
               file=sys.stderr)
         for runs in results["app_pipeline"].values():
             for a in runs.values():
@@ -1693,7 +1693,7 @@ def tables(R: dict, names: list[str], methods: list[str]) -> str:
                                      (f", {v['unscored_grouped']} other-moment" if v["unscored_grouped"] else ""))
                 rows.append([f"`{m}`", f"{cname} ({cfg[2]:.3f}/{cfg[3]:.3f})"] + cells)
         out.append("\n### Inside the app's time window (every embedding through the app's grouping step)\n\n"
-                   "series_port.py (SeriesBuilder + Scanner.groups, checked against gtscan) with each embedding "
+                   "series_port.py (SeriesBuilder + Scanner.groups, checked against tkscan) with each embedding "
                    "int8-quantized and compared by Euclidean distance as the app stores it. Configs (link/anchor): "
                    "transfer = the transfer threshold as a link; window-dev = the link with the most recall at "
                    f"in-window pair precision ≥ {WINDOW_TARGET} on {W['calibration_part']} (real series packed "
@@ -1709,23 +1709,23 @@ def tables(R: dict, names: list[str], methods: list[str]) -> str:
         out.append("\nOracle in-window sweeps (link picked on the set itself): recall at pair precision ≥ 0.99 / "
                    "best F1.\n")
         out.append(md_table(["Method"] + sk, rows))
-        chk = W.get("gtscan_check", [])
+        chk = W.get("tkscan_check", [])
         if chk:
             ok = sum(c["match"] for c in chk)
-            out.append(f"\nPort vs gtscan (the Swift code): {ok} of {len(chk)} runs give identical groups.")
-    if R.get("gtscan_features"):
+            out.append(f"\nPort vs tkscan (the Swift code): {ok} of {len(chk)} runs give identical groups.")
+    if R.get("tkscan_features"):
         rows = []
-        for m, per in R["gtscan_features"].items():
+        for m, per in R["tkscan_features"].items():
             for cname, by_ds in per.items():
                 rows.append([f"`{m}`", cname] + [
                     (f"{f3(v['official']['pair_precision'])} / {f3(v['official']['pair_recall'])}, "
                      f"{v['official']['series_found']}/{v['official']['series_total']}, "
                      f"{f3(v['official']['keeper_accuracy'])}") if (v := by_ds.get(ds)) else "n/a"
-                    for ds in GTSCAN_FEATURE_DATASETS])
-        out.append("\n### gtscan eval --features: other embeddings inside the app itself\n\nThe app's GroupingEval "
+                    for ds in TKSCAN_FEATURE_DATASETS])
+        out.append("\n### tkscan eval --features: other embeddings inside the app itself\n\nThe app's GroupingEval "
                    "(pair P / R, series found, keeper accuracy), balanced timing, link/anchor as calibrated above. "
                    "Its pair precision counts gopro other-moment pairs as wrong.\n")
-        out.append(md_table(["Embedding", "config"] + GTSCAN_FEATURE_DATASETS, rows))
+        out.append(md_table(["Embedding", "config"] + TKSCAN_FEATURE_DATASETS, rows))
 
     # App pipeline.
     if "app_pipeline" in R:
@@ -1740,14 +1740,14 @@ def tables(R: dict, names: list[str], methods: list[str]) -> str:
                              f"{f3(a['keeper_accuracy_known_best'])} (n={a['keeper_known_n']})",
                              f"{ms['not_analyzed']} / {ms['beyond_max_span']} / {ms['visual_or_linking']}",
                              "yes" if a.get("port_matches") else "NO"])
-        out.append("\n### App pipeline (gtscan eval: capture-time window + SeriesBuilder + ShotScorer)\n\nMissed pairs: "
+        out.append("\n### App pipeline (tkscan eval: capture-time window + SeriesBuilder + ShotScorer)\n\nMissed pairs: "
                    "never analyzed (no other photo within maxGap) / farther apart than maxSpan / within the window but "
                    "not grouped. Scored P leaves out unscored pairs (count in parentheses: gopro other-moment pairs "
-                   "grouped). Keeper accuracy (gtscan) counts every found series, with the first file as 'best' "
+                   "grouped). Keeper accuracy (tkscan) counts every found series, with the first file as 'best' "
                    "where none is known; the next column counts only series whose best is known. Port = "
                    "series_port.py gives the same groups.\n")
         out.append(md_table(["Dataset", "sensitivity", "analyzed", "pair P", "pair R", "scored P (unscored)",
-                             "series found", "keeper acc. (gtscan)", "keeper acc. (known best)",
+                             "series found", "keeper acc. (tkscan)", "keeper acc. (known best)",
                              "missed: not analyzed / span / visual", "port"], rows))
 
     # Best shot.

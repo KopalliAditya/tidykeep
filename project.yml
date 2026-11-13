@@ -1,9 +1,9 @@
-# Generates GoodTake.xcodeproj. After editing, run: xcodegen generate
-name: GoodTake
+# Generates Tidykeep.xcodeproj. After editing, run: xcodegen generate
+name: Tidykeep
 options:
   bundleIdPrefix: com.kopalliaditya
   deploymentTarget:
-    iOS: "18.0"
+    iOS: "26.0"
   createIntermediateGroups: true
 settings:
   base:
@@ -14,32 +14,32 @@ settings:
     # time the project is regenerated.
     DEVELOPMENT_TEAM: ""
 packages:
-  GoodTakeKit:
-    path: GoodTakeKit
+  TidykeepKit:
+    path: TidykeepKit
 targets:
-  GoodTake:
+  Tidykeep:
     type: application
     platform: iOS
     sources:
       - path: App
     dependencies:
-      - package: GoodTakeKit
-        product: GoodTakeUI
-      - package: GoodTakeKit
-        product: GoodTakeVision
-      - package: GoodTakeKit
-        product: GoodTakePhotoKit
+      - package: TidykeepKit
+        product: TidykeepUI
+      - package: TidykeepKit
+        product: TidykeepVision
+      - package: TidykeepKit
+        product: TidykeepPhotoKit
     info:
       path: App/Info.plist
       properties:
-        CFBundleDisplayName: Good Take
+        CFBundleDisplayName: Tidykeep
         CFBundleShortVersionString: $(MARKETING_VERSION)
         CFBundleVersion: $(CURRENT_PROJECT_VERSION)
         LSApplicationCategoryType: public.app-category.photography
         NSPhotoLibraryUsageDescription: >-
-          Good Take looks through the photos on this iPhone to find near-identical shots and
+          Tidykeep looks through the photos on this iPhone to find near-identical shots and
           suggest the best one to keep. When you choose, it moves the extras to Recently
-          Deleted. Good Take never sends your photos anywhere.
+          Deleted. Tidykeep never sends your photos anywhere.
         PHPhotoLibraryPreventAutomaticLimitedAccessAlert: true
         ITSAppUsesNonExemptEncryption: false
         UILaunchScreen: {}
@@ -49,7 +49,7 @@ targets:
           UIApplicationSupportsMultipleScenes: false
     settings:
       base:
-        PRODUCT_BUNDLE_IDENTIFIER: com.kopalliaditya.goodtake
+        PRODUCT_BUNDLE_IDENTIFIER: com.kopalliaditya.tidykeep
         TARGETED_DEVICE_FAMILY: "1"
         SUPPORTS_MACCATALYST: NO
         SUPPORTS_MAC_DESIGNED_FOR_IPHONE_IPAD: NO
@@ -60,17 +60,17 @@ targets:
         ENABLE_USER_SCRIPT_SANDBOXING: YES
         SWIFT_EMIT_LOC_STRINGS: YES
 schemes:
-  GoodTake:
+  Tidykeep:
     build:
       targets:
-        GoodTake: all
+        Tidykeep: all
     run:
       config: Debug
     test:
       config: Debug
       targets:
-        - package: GoodTakeKit/GoodTakeCoreTests
-        - package: GoodTakeKit/GoodTakeVisionTests
-        - package: GoodTakeKit/GoodTakeScanTests
+        - package: TidykeepKit/TidykeepCoreTests
+        - package: TidykeepKit/TidykeepVisionTests
+        - package: TidykeepKit/TidykeepScanTests
     archive:
       config: Release
