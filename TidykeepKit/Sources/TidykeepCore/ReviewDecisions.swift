@@ -77,6 +77,8 @@ public struct ReviewLedger: Sendable, Hashable, Codable {
     /// Shown in Settings. Never leaves the device.
     public var photosRemoved = 0
     public var lastScan: Date?
+    /// Videos the user chose to keep from Big Videos. They aren't listed again.
+    public var keptVideoIDs: Set<String> = []
 
     public init() {}
 
@@ -87,5 +89,6 @@ public struct ReviewLedger: Sendable, Hashable, Codable {
         decisions = try c.decodeIfPresent(ReviewDecisions.self, forKey: .decisions) ?? ReviewDecisions()
         photosRemoved = try c.decodeIfPresent(Int.self, forKey: .photosRemoved) ?? 0
         lastScan = try c.decodeIfPresent(Date.self, forKey: .lastScan)
+        keptVideoIDs = try c.decodeIfPresent(Set<String>.self, forKey: .keptVideoIDs) ?? []
     }
 }

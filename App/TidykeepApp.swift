@@ -5,8 +5,8 @@ import SwiftUI
 
 @main
 struct TidykeepApp: App {
-    @State private var model = AppModel(
-        source: PhotoKitSource(),
+    @State private var state = AppState(
+        photoSource: PhotoKitSource(),
         analyzer: VisionFrameAnalyzer(),
         directory: TidykeepApp.dataDirectory()
     )
@@ -14,7 +14,7 @@ struct TidykeepApp: App {
     var body: some Scene {
         WindowGroup {
             RootView()
-                .environment(model)
+                .environment(state)
         }
     }
 

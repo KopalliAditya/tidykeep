@@ -32,7 +32,15 @@ let package = Package(
         .target(name: "TidykeepFolderSource", dependencies: ["TidykeepCore"]),
         // Synthetic scenes for tests and demos.
         .target(name: "TidykeepTestSupport", dependencies: ["TidykeepCore"]),
-        .target(name: "TidykeepUI", dependencies: ["TidykeepCore"]),
+        // The app's screens. The privacy policy and acknowledgements ship as text, read on device.
+        .target(
+            name: "TidykeepUI",
+            dependencies: ["TidykeepCore"],
+            resources: [
+                .copy("Resources/PrivacyPolicy.txt"),
+                .copy("Resources/Acknowledgements.txt"),
+            ]
+        ),
         .executableTarget(
             name: "tkscan",
             dependencies: ["TidykeepCore", "TidykeepVision", "TidykeepFolderSource", "TidykeepTestSupport"]
