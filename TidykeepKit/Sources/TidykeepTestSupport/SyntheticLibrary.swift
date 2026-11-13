@@ -19,10 +19,16 @@ public enum SyntheticLibrary {
 
         public var series: [Series]
         public var singles: [String]
+        /// Optional scene per file. Two photos from different series of one scene count as
+        /// neither a right nor a wrong pair: in gopro-bursts, two moments of one clip a few
+        /// seconds apart are fair to group either way. The bench leaves the same pairs out
+        /// (`unscored_same` in its truth files), so the scores can be compared.
+        public var scenes: [String: String]?
 
-        public init(series: [Series], singles: [String]) {
+        public init(series: [Series], singles: [String], scenes: [String: String]? = nil) {
             self.series = series
             self.singles = singles
+            self.scenes = scenes
         }
     }
 

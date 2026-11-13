@@ -60,6 +60,7 @@ public final class AppModel {
     private let directory: URL?
     private let defaults: UserDefaults
     private let conditions: @Sendable () -> DeviceConditions
+    private let findsCopies: Bool
     private let ledgerFile: JSONFile<ReviewLedger>?
     private var store: AnalysisStore?
     private var storeTask: Task<AnalysisStore, Never>?
@@ -79,8 +80,10 @@ public final class AppModel {
         analyzer: any FrameAnalyzing,
         directory: URL?,
         defaults: UserDefaults = .standard,
-        conditions: @escaping @Sendable () -> DeviceConditions = { .current() }
+        conditions: @escaping @Sendable () -> DeviceConditions = { .current() },
+        findsCopies: Bool = true
     ) {
+        self.findsCopies = findsCopies
         self.source = source
         self.analyzer = analyzer
         self.directory = directory
@@ -162,7 +165,7 @@ public final class AppModel {
 
     private func runScan() async {
         let store = await loadStore()
-        let scanner = Scanner(source: source, analyzer: analyzer, store: store, conditions: conditions)
+        let scanner = Scanner(source: source, analyzer: analyzer, store: store, conditions: conditions, findsCopies: findsCopies)
         var progress = ScanProgress()
         scanState = .scanning(progress)
         do {
@@ -176,8 +179,10 @@ public final class AppModel {
                     // The scanner repeats this while the phone stays hot; say it once.
                     if case .paused = scanState {} else { announce("Paused while your phone cools down.") }
                     scanState = .paused(progress)
-                case .groups(let found):
-                    show(found)
+                case .results(let found):
+                    show(found.similar)
+                case .library:
+                    break
                 case .finished(let p):
                     let now = Date()
                     ledger.lastScan = now
@@ -396,7 +401,6 @@ public final class AppModel {
     }
 }
 
-typealias AnnouncementPriority = AttributeScopes.AccessibilityAttributes.AnnouncementPriorityAttribute.AnnouncementPriority
 
 final class ImageBox {
     let image: CGImage

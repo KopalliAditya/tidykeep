@@ -92,7 +92,10 @@ def write_dataset(
         assert times is not None, "tkscan needs capture times"
         series = [{"files": g, "best": best.get(str(i), g[0])} for i, g in enumerate(groups)]
         singles = sorted(set(images) - seen)
-        write_json(img_dir / "truth.json", {"series": series, "singles": singles})
+        app_truth = {"series": series, "singles": singles}
+        if extra and "unscored_same" in extra:  # tkscan eval leaves the same pairs unscored
+            app_truth["scenes"] = extra["unscored_same"]["of"]
+        write_json(img_dir / "truth.json", app_truth)
         write_json(img_dir / "manifest.json", {"files": {f: {"date": iso(times[f])} for f in images}})
     return summarize(truth)
 

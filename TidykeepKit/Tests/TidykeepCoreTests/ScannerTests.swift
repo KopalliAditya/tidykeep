@@ -20,7 +20,9 @@ import Testing
 
     struct Result {
         var events: [ScanEvent] = []
-        var groups: [PhotoGroup] { events.reduce(into: []) { if case .groups(let g) = $1 { $0 = g } } }
+        var results: PhotoResults? { events.compactMap { if case .results(let r) = $0 { r } else { nil } }.last }
+        var groups: [PhotoGroup] { results?.similar ?? [] }
+        var copies: [PhotoGroup] { results?.copies ?? [] }
         var finished: ScanProgress? { events.compactMap { if case .finished(let p) = $0 { p } else { nil } }.last }
         var paused: Bool { events.contains { if case .paused = $0 { true } else { false } } }
     }
@@ -47,10 +49,11 @@ import Testing
         let result = try await scan(source, analyzer: analyzer)
         #expect(result.groups.map { $0.members.map(\.id) } == [["b1", "b2"], ["a2", "a1", "a3"]])
         #expect(result.groups.last?.keeper.id == "a2")
-        // "alone" has nothing near it in time, so it's never analyzed.
-        #expect(analyzer.callCount == 6)
+        // "alone" has nothing near it in time. It's analyzed last, only for the copy pass.
+        #expect(analyzer.callCount == 7)
         #expect(result.finished?.photosInRange == 7)
-        #expect(result.finished?.analyzed == 6)
+        #expect(result.finished?.analyzed == 7)
+        #expect(result.results?.copiesComplete == true)
     }
 
     @Test func aSecondScanUsesTheCache() async throws {
@@ -59,7 +62,7 @@ import Testing
         let store = AnalysisStore(url: nil, analyzerVersion: analyzer.version)
         let first = try await scan(source, analyzer: analyzer, store: store)
         let second = try await scan(source, analyzer: analyzer, store: store)
-        #expect(analyzer.callCount == 6)
+        #expect(analyzer.callCount == 7)
         #expect(second.finished?.toAnalyze == 0)
         #expect(second.groups.map(\.id) == first.groups.map(\.id))
     }
@@ -71,13 +74,14 @@ import Testing
         _ = try await scan(source, analyzer: analyzer, store: store)
         source.replace("a3", with: meta("a3", 4, edited: true, version: t0.addingTimeInterval(99)))
         let second = try await scan(source, analyzer: analyzer, store: store)
-        #expect(analyzer.callCount == 7)
+        #expect(analyzer.callCount == 8)
         #expect(second.finished?.toAnalyze == 1)
     }
 
     @Test func photosOnlyInICloudAreSkipped() async throws {
         let result = try await scan(library(unreadable: ["a1", "b2"]))
         #expect(result.finished?.skipped == 2)
+        #expect(result.finished?.skippedInCloud == 2)
         #expect(result.groups.map { Set($0.members.map(\.id)) } == [["a2", "a3"]])
     }
 
@@ -134,7 +138,7 @@ import Testing
         _ = try await scan(source, analyzer: analyzer, store: store)
         _ = await source.delete(["a3", "other"])
         _ = try await scan(source, analyzer: analyzer, store: store)
-        #expect(await store.count == 4)
+        #expect(await store.count == 5)
     }
 
     @Test func showsCachedGroupsBeforeAnalyzingNewPhotos() async throws {
@@ -145,10 +149,75 @@ import Testing
         source.replace("b2", with: meta("b2", 3_603, version: t0))
         let second = try await scan(source, analyzer: analyzer, store: store)
         // The first groups event arrives before any progress beyond the start.
-        let firstGroups = second.events.firstIndex { if case .groups = $0 { true } else { false } }
+        let firstGroups = second.events.firstIndex { if case .results = $0 { true } else { false } }
         let firstAnalyzed = second.events.firstIndex { if case .progress(let p) = $0 { p.analyzed > 0 } else { false } }
         #expect(firstGroups != nil)
         #expect(firstAnalyzed == nil || firstGroups! < firstAnalyzed!)
+    }
+
+    /// A photo, a smaller re-save of it a month later, a screenshot of it, and an unrelated
+    /// photo. Their content-model embeddings are what the copy pass reads.
+    func copyLibrary() -> FakeLibrary {
+        func shot(_ embedding: QuantizedEmbedding, cls: QuantizedEmbedding, utility: Bool = false) -> FrameSignals {
+            FrameSignals(embedding: embedding, aesthetics: 0.5, isUtility: utility, sharpness: 5, faceQualities: [], dinoCLS: cls)
+        }
+        let month = 30.0 * 86_400
+        return FakeLibrary([
+            (meta("original", 0), shot(scene(0), cls: scene(4))),
+            (AssetMeta(id: "resaved", creationDate: t0.addingTimeInterval(month), pixelWidth: 1600, pixelHeight: 1200),
+             shot(scene(0, nudge: 0.02), cls: scene(4, nudge: 0.05))),
+            (AssetMeta(id: "screenshot", creationDate: t0.addingTimeInterval(2 * month), pixelWidth: 1179, pixelHeight: 2556, isScreenshot: true),
+             shot(scene(0, nudge: 0.03), cls: scene(4, nudge: 0.1))),
+            (meta("unrelated", 3 * month), shot(scene(8), cls: scene(12))),
+        ])
+    }
+
+    @Test func findsCopiesAcrossTimeKeeperFirst() async throws {
+        let result = try await scan(copyLibrary())
+        #expect(result.groups.isEmpty)
+        let copies = try #require(result.copies.first)
+        #expect(result.copies.count == 1)
+        #expect(copies.kind == .copies)
+        // The most pixels that isn't a screenshot is kept, whatever the date.
+        #expect(copies.members.map(\.id) == ["original", "resaved", "screenshot"])
+        #expect(ReviewDecisions().removals(in: copies).map(\.id) == ["resaved", "screenshot"])
+        #expect(result.results?.copiesComplete == true)
+    }
+
+    @Test func screenshotsAreListedButNeverJoinASeries() async throws {
+        let library = FakeLibrary([
+            (AssetMeta(id: "s1", creationDate: t0, pixelWidth: 1179, pixelHeight: 2556, isScreenshot: true), signals(scene(0))),
+            (AssetMeta(id: "s2", creationDate: t0.addingTimeInterval(2), pixelWidth: 1179, pixelHeight: 2556, isScreenshot: true), signals(scene(0, nudge: 0.05))),
+        ])
+        let result = try await scan(library)
+        let listed = result.events.compactMap { if case .library(let m) = $0 { m } else { nil } }.first
+        #expect(listed?.map(\.id) == ["s1", "s2"])
+        #expect(result.groups.isEmpty)
+    }
+
+    @Test func aRuleKeepsAPhotoOutOfItsCopySet() async throws {
+        let result = try await scan(copyLibrary())
+        let copies = try #require(result.copies.first)
+        let ruled = copies.applying(keptByRules: ["resaved", "screenshot"])
+        #expect(!ruled.hasSuggestions)
+        #expect(copies.applying(keptByRules: ["resaved"]).hasSuggestions)
+    }
+
+    @Test func similarShotsComeBeforeTheCopyPassFinishes() async throws {
+        // Enough lone photos that phase 2 crosses a flush, so similar shots are sent while
+        // copies are still incomplete.
+        var photos: [(AssetMeta, FrameSignals)] = [
+            (meta("a1", 0), signals(scene(0), sharpness: 3)),
+            (meta("a2", 2), signals(scene(0, nudge: 0.05), sharpness: 7)),
+        ]
+        for i in 0..<(Scanner.groupsEvery * 2) {
+            photos.append((meta("lone\(i)", -Double(i + 1) * 3_600), signals(scene(i % 16, nudge: Double(i) * 0.01))))
+        }
+        let result = try await scan(FakeLibrary(photos))
+        let all = result.events.compactMap { if case .results(let r) = $0 { r } else { nil } }
+        let early = try #require(all.first { !$0.similar.isEmpty })
+        #expect(!early.copiesComplete)
+        #expect(all.last?.copiesComplete == true)
     }
 
     @Test func stopsWhenCancelled() async throws {

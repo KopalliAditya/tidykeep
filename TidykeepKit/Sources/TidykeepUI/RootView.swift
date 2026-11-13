@@ -22,7 +22,6 @@ public struct RootView: View {
         }
         .task { await model.start() }
         .onChange(of: scenePhase) { _, phase in model.scenePhaseChanged(to: phase) }
-        .overlay(alignment: .top) { NoticeBanner() }
     }
 }
 
@@ -122,32 +121,6 @@ struct AccessDeniedView: View {
             .padding(32)
             .frame(maxWidth: 500)
             .frame(maxWidth: .infinity)
-        }
-    }
-}
-
-/// A short-lived banner for `AppModel.notice`. VoiceOver already heard it as an announcement.
-struct NoticeBanner: View {
-    @Environment(AppModel.self) private var model
-    @Environment(\.accessibilityReduceMotion) private var reduceMotion
-
-    var body: some View {
-        if let notice = model.notice {
-            Text(notice)
-                .font(.subheadline.weight(.medium))
-                .multilineTextAlignment(.center)
-                .padding(.horizontal, 16)
-                .padding(.vertical, 10)
-                .background(.regularMaterial, in: Capsule())
-                .shadow(radius: 4, y: 2)
-                .padding(.top, 8)
-                .padding(.horizontal)
-                .accessibilityHidden(true)
-                .transition(reduceMotion ? .opacity : .move(edge: .top).combined(with: .opacity))
-                .task(id: notice) {
-                    try? await Task.sleep(for: .seconds(4))
-                    if model.notice == notice { withAnimation { model.clearNotice() } }
-                }
         }
     }
 }

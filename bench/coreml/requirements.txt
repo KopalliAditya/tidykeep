@@ -1,0 +1,14 @@
+# Core ML conversion environment (Python 3.12, macOS for the Core ML checks).
+# Separate from bench/.venv: coremltools 9.0 supports torch up to 2.7.0 (the bench runs 2.15),
+# and its torch frontend still calls int() on one-element arrays, which numpy 2.4 removed.
+#   uv venv <venv> --python 3.12
+#   VIRTUAL_ENV=<venv> uv pip install -r bench/coreml/requirements.txt
+coremltools==9.0
+torch==2.7.0
+transformers==5.22.2
+huggingface-hub==2.4.0
+safetensors==0.8.0
+numpy==2.3.5
+pillow==13.0.0
+pillow-heif==1.8.1
+scikit-learn==1.9.1  # k-means for grouped-channel palettization

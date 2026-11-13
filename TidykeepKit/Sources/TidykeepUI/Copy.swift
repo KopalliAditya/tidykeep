@@ -4,6 +4,21 @@ import TidykeepCore
 /// User-facing text, including everything VoiceOver reads. Kept in one place so it stays
 /// consistent and can be tested.
 enum Copy {
+    enum General {
+        static let dismiss = "Dismiss"
+        static let done = "Done"
+        static let cancel = "Cancel"
+        static let undo = "Undo"
+        static let tryAgain = "Try Again"
+        static let openSettings = "Open Settings"
+    }
+
+    enum Reason {
+        static let why = "Why"
+        static let keptSafe = "Kept safe"
+        static let undo = "Undo"
+    }
+
     static func photos(_ n: Int) -> String { n == 1 ? "1 photo" : "\(n) photos" }
 
     static func groups(_ n: Int) -> String { n == 1 ? "1 group" : "\(n) groups" }

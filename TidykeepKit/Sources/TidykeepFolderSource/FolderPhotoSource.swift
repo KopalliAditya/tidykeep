@@ -16,12 +16,16 @@ public final class FolderPhotoSource: PhotoSource {
             public var burst: String?
             public var favorite: Bool?
             public var edited: Bool?
+            /// What PhotoKit's screenshot subtype would say. A folder can't know, so it is
+            /// false unless the manifest says otherwise.
+            public var screenshot: Bool?
 
-            public init(date: Date, burst: String? = nil, favorite: Bool? = nil, edited: Bool? = nil) {
+            public init(date: Date, burst: String? = nil, favorite: Bool? = nil, edited: Bool? = nil, screenshot: Bool? = nil) {
                 self.date = date
                 self.burst = burst
                 self.favorite = favorite
                 self.edited = edited
+                self.screenshot = screenshot
             }
         }
 
@@ -77,7 +81,8 @@ public final class FolderPhotoSource: PhotoSource {
                 pixelHeight: size.height,
                 burstID: entry?.burst,
                 isFavorite: entry?.favorite ?? false,
-                hasAdjustments: entry?.edited ?? false
+                hasAdjustments: entry?.edited ?? false,
+                isScreenshot: entry?.screenshot ?? false
             )
         }.sorted { $0.creationDate < $1.creationDate }
     }

@@ -112,10 +112,11 @@ import Testing
     }
 
     @Test func stricterSettingsGroupLess() {
-        // Two shots 0.5 apart: together when balanced, apart when strict.
+        // Two shots 0.53 apart, with no content embedding: together when balanced (0.55),
+        // apart when strict (0.50).
         let items = [
             (meta("a", 0), QuantizedEmbedding(vector(axis: 0, angle: 0))),
-            (meta("b", 2), QuantizedEmbedding(vector(axis: 0, angle: 2 * asin(0.25)))),
+            (meta("b", 2), QuantizedEmbedding(vector(axis: 0, angle: 2 * asin(0.265)))),
         ]
         #expect(build(items, config: Sensitivity.balanced.config) == [["a", "b"]])
         #expect(build(items, config: Sensitivity.strict.config).isEmpty)
@@ -125,8 +126,12 @@ import Testing
         let s = Sensitivity.strict.config, b = Sensitivity.balanced.config, l = Sensitivity.loose.config
         #expect(s.maxGap < b.maxGap && b.maxGap < l.maxGap)
         #expect(s.maxSpan < b.maxSpan && b.maxSpan < l.maxSpan)
-        #expect(s.linkDistance < b.linkDistance && b.linkDistance < l.linkDistance)
-        #expect(s.anchorDistance < b.anchorDistance && b.anchorDistance < l.anchorDistance)
-        for c in [s, b, l] { #expect(c.linkDistance <= c.anchorDistance) }
+        #expect(s.link < b.link && b.link < l.link)
+        #expect(s.anchor < b.anchor && b.anchor < l.anchor)
+        #expect(s.softOnlyLink < b.softOnlyLink && b.softOnlyLink < l.softOnlyLink)
+        #expect(s.softOnlyAnchor < b.softOnlyAnchor && b.softOnlyAnchor < l.softOnlyAnchor)
+        for c in [s, b, l] {
+            #expect(c.link <= c.anchor && c.softLink <= c.softAnchor && c.softOnlyLink <= c.softOnlyAnchor)
+        }
     }
 }

@@ -3,18 +3,30 @@ import Foundation
 
 /// Finds series: runs of photos of the same moment.
 ///
-/// Photos are walked in capture order. Each one joins the open group it is closest to,
-/// if it is within `linkDistance` of one of that group's recent members and within
-/// `anchorDistance` of the group's first photo. Groups close after `maxGap` seconds
-/// of silence or `maxSpan` seconds in total. Burst frames always stay together.
+/// Photos are walked in capture order. Each one joins the open group it is closest to, if it
+/// passes the link test against one of that group's recent members and the anchor test against
+/// the group's first photo (`GroupingConfig` has both). Groups close after `maxGap` seconds of
+/// silence or `maxSpan` seconds in total. Burst frames always stay together.
+///
+/// This is the walk `build` in bench/rules.py fitted the constants with, so keep the two in step:
+/// the same comparisons (`<=` passes, and a later group must be strictly closer to win), the
+/// same lookback and the same timing. The bench has no burst IDs; the burst rule is the app's.
 public enum SeriesBuilder {
     public struct Item: Sendable {
         public let meta: AssetMeta
+        /// The softened Vision feature print.
         public let embedding: QuantizedEmbedding
+        /// The content model's patch mean, when the photo has one.
+        public let content: QuantizedEmbedding?
 
-        public init(meta: AssetMeta, embedding: QuantizedEmbedding) {
+        public init(meta: AssetMeta, embedding: QuantizedEmbedding, content: QuantizedEmbedding? = nil) {
             self.meta = meta
             self.embedding = embedding
+            self.content = content
+        }
+
+        public init(meta: AssetMeta, signals: FrameSignals) {
+            self.init(meta: meta, embedding: signals.embedding, content: signals.dinoMean)
         }
     }
 
@@ -39,6 +51,7 @@ public enum SeriesBuilder {
         // Only photos in open groups are compared, so vectors are expanded when first needed
         // and dropped when their group closes. A big library never holds them all at once.
         var vectors = [[Float]?](repeating: nil, count: sorted.count)
+        var contents = [[Float]?](repeating: nil, count: sorted.count)
 
         final class Open {
             var members: [Int]
@@ -63,10 +76,30 @@ public enum SeriesBuilder {
             return v
         }
 
-        func distance(_ a: Int, _ b: Int) -> Float {
-            let va = vector(a), vb = vector(b)
+        func content(_ i: Int) -> [Float]? {
+            if let v = contents[i] { return v }
+            guard let v = sorted[i].content?.dequantized() else { return nil }
+            contents[i] = v
+            return v
+        }
+
+        func distance(_ va: [Float], _ vb: [Float]) -> Float {
             guard va.count == vb.count, !va.isEmpty else { return .infinity }
             return vDSP.distanceSquared(va, vb).squareRoot()
+        }
+
+        /// The patch-mean distance, or nil when either photo has none (the softened print decides).
+        func contentDistance(_ a: Int, _ b: Int) -> Float? {
+            guard let ca = content(a), let cb = content(b) else { return nil }
+            return distance(ca, cb)
+        }
+
+        func linkScore(_ a: Int, _ b: Int) -> Float {
+            config.linkScore(soft: distance(vector(a), vector(b)), content: contentDistance(a, b))
+        }
+
+        func anchorScore(_ a: Int, _ b: Int) -> Float {
+            config.anchorScore(soft: distance(vector(a), vector(b)), content: contentDistance(a, b))
         }
 
         for (i, item) in sorted.enumerated() {
@@ -75,7 +108,10 @@ public enum SeriesBuilder {
                 let stale = date.timeIntervalSince(group.last) > config.maxGap
                 if stale {
                     done.append(group.members)
-                    for m in group.members { vectors[m] = nil }
+                    for m in group.members {
+                        vectors[m] = nil
+                        contents[m] = nil
+                    }
                 }
                 return stale
             }
@@ -88,9 +124,9 @@ public enum SeriesBuilder {
                 var best = Float.infinity
                 for group in open where date.timeIntervalSince(group.first) <= config.maxSpan {
                     let recent = group.members.suffix(config.lookback)
-                    let nearest = recent.map { distance(i, $0) }.min() ?? .infinity
-                    guard nearest <= config.linkDistance, nearest < best else { continue }
-                    guard distance(i, group.members[0]) <= config.anchorDistance else { continue }
+                    let nearest = recent.map { linkScore(i, $0) }.min() ?? .infinity
+                    guard nearest <= 1, nearest < best else { continue }
+                    guard anchorScore(i, group.members[0]) <= 1 else { continue }
                     best = nearest
                     target = group
                 }

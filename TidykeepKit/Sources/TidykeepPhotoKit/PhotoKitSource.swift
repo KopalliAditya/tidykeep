@@ -1,8 +1,10 @@
+import AVFoundation
 import CoreGraphics
 import Foundation
 import TidykeepCore
 import os
 import Photos
+import UniformTypeIdentifiers
 #if canImport(UIKit)
 import PhotosUI
 import UIKit
@@ -18,6 +20,7 @@ public final class PhotoKitSource: PhotoSource {
     private let manager = PHImageManager.default()
     /// Assets from the last fetch, so loading an image doesn't run a query per photo.
     private let assets = OSAllocatedUnfairLock(initialState: [String: PHAsset]())
+    private let videos = OSAllocatedUnfairLock(initialState: [String: PHAsset]())
     private let monitor = OSAllocatedUnfairLock<ChangeMonitor?>(initialState: nil)
 
     public init() {}
@@ -31,19 +34,8 @@ public final class PhotoKitSource: PhotoSource {
     }
 
     public func fetchAssets(since: Date?) async throws -> [AssetMeta] {
-        let options = PHFetchOptions()
-        var predicates = [
-            NSPredicate(format: "mediaType == %d", PHAssetMediaType.image.rawValue),
-            NSPredicate(format: "(mediaSubtypes & %d) == 0", PHAssetMediaSubtype.photoScreenshot.rawValue),
-        ]
-        if let since {
-            predicates.append(NSPredicate(format: "creationDate >= %@", since as NSDate))
-        }
-        options.predicate = NSCompoundPredicate(andPredicateWithSubpredicates: predicates)
-        options.sortDescriptors = [NSSortDescriptor(key: "creationDate", ascending: true)]
+        let options = Self.options(.image, since: since)
         options.includeAllBurstAssets = true
-        options.includeAssetSourceTypes = [.typeUserLibrary]
-
         let result = PHAsset.fetchAssets(with: options)
         var metas: [AssetMeta] = []
         var byID: [String: PHAsset] = [:]
@@ -61,7 +53,8 @@ public final class PhotoKitSource: PhotoSource {
                     pixelHeight: asset.pixelHeight,
                     burstID: asset.burstIdentifier,
                     isFavorite: asset.isFavorite,
-                    hasAdjustments: asset.hasAdjustments
+                    hasAdjustments: asset.hasAdjustments,
+                    isScreenshot: asset.mediaSubtypes.contains(.photoScreenshot)
                 ))
             }
         }
@@ -111,8 +104,157 @@ public final class PhotoKitSource: PhotoSource {
             return []
         }
         let deleted = Set(targets)
-        assets.withLock { cache in deleted.forEach { cache[$0] = nil } }
+        forget(deleted)
         return deleted
+    }
+
+    public func fetchVideos(since: Date?) async throws -> [VideoMeta] {
+        let result = PHAsset.fetchAssets(with: Self.options(.video, since: since))
+        var metas: [VideoMeta] = []
+        var byID: [String: PHAsset] = [:]
+        metas.reserveCapacity(result.count)
+        for i in 0..<result.count {
+            autoreleasepool {
+                let asset = result.object(at: i)
+                guard let created = asset.creationDate else { return }
+                byID[asset.localIdentifier] = asset
+                metas.append(VideoMeta(
+                    id: asset.localIdentifier,
+                    creationDate: created,
+                    duration: asset.duration,
+                    pixelWidth: asset.pixelWidth,
+                    pixelHeight: asset.pixelHeight,
+                    isFavorite: asset.isFavorite,
+                    hasAdjustments: asset.hasAdjustments
+                ))
+            }
+        }
+        let snapshot = byID
+        videos.withLock { $0 = snapshot }
+        return metas
+    }
+
+    public func albums() async -> [PhotoAlbum] {
+        let collections = PHAssetCollection.fetchAssetCollections(with: .album, subtype: .albumRegular, options: nil)
+        var albums: [PhotoAlbum] = []
+        for i in 0..<collections.count {
+            autoreleasepool {
+                let collection = collections.object(at: i)
+                let members = PHAsset.fetchAssets(in: collection, options: nil)
+                var ids = Set<String>()
+                for j in 0..<members.count { ids.insert(members.object(at: j).localIdentifier) }
+                albums.append(PhotoAlbum(
+                    id: collection.localIdentifier,
+                    title: collection.localizedTitle ?? "",
+                    assetIDs: ids,
+                    canAddPhotos: collection.canPerform(.addContent)
+                ))
+            }
+        }
+        return albums.sorted { $0.title.localizedStandardCompare($1.title) == .orderedAscending }
+    }
+
+    public func merge(_ sets: [CopyMerge]) async -> [MergeOutcome]? {
+        let albums = await albums()
+        var plans: [MergePlan] = []
+        for set in sets {
+            let all = PHAsset.fetchAssets(withLocalIdentifiers: [set.keeperID] + set.removeIDs, options: nil)
+            var byID: [String: PHAsset] = [:]
+            for i in 0..<all.count { byID[all.object(at: i).localIdentifier] = all.object(at: i) }
+            guard let keeper = byID[set.keeperID] else { continue }
+            // As in `delete`: a copy made a favorite or edited since the check is kept.
+            let removing = set.removeIDs.compactMap { byID[$0] }.filter { !$0.isFavorite && !$0.hasAdjustments }
+            guard !removing.isEmpty else { continue }
+            let removingIDs = Set(removing.map(\.localIdentifier))
+            var outcome = MergeOutcome(keeperID: set.keeperID, deletedIDs: removingIDs)
+            for album in albums where !album.assetIDs.contains(set.keeperID) && !album.assetIDs.isDisjoint(with: removingIDs) {
+                if album.canAddPhotos { outcome.albumIDsAdded.append(album.id) } else { outcome.albumsSkipped.append(album.title) }
+            }
+            plans.append(MergePlan(keeper: keeper, removing: removing, outcome: outcome))
+        }
+        guard !plans.isEmpty else { return nil }
+        let collections = Self.collections(Set(plans.flatMap(\.outcome.albumIDsAdded)))
+        do {
+            try await PHPhotoLibrary.shared().performChanges {
+                for plan in plans {
+                    for id in plan.outcome.albumIDsAdded {
+                        guard let album = collections[id] else { continue }
+                        PHAssetCollectionChangeRequest(for: album)?.addAssets([plan.keeper] as NSArray)
+                    }
+                    PHAssetChangeRequest.deleteAssets(plan.removing as NSArray)
+                }
+            }
+        } catch {
+            return nil
+        }
+        let deleted = Set(plans.flatMap(\.outcome.deletedIDs))
+        forget(deleted)
+        return plans.map(\.outcome)
+    }
+
+    public func undoMerge(_ outcomes: [MergeOutcome]) async -> Bool {
+        let collections = Self.collections(Set(outcomes.flatMap(\.albumIDsAdded)))
+        let keepers = PHAsset.fetchAssets(withLocalIdentifiers: outcomes.map(\.keeperID), options: nil)
+        var byID: [String: PHAsset] = [:]
+        for i in 0..<keepers.count { byID[keepers.object(at: i).localIdentifier] = keepers.object(at: i) }
+        let work = outcomes.filter { byID[$0.keeperID] != nil && ($0.favoriteAdded || !$0.albumIDsAdded.isEmpty) }
+        guard !work.isEmpty else { return true }
+        do {
+            try await PHPhotoLibrary.shared().performChanges {
+                for outcome in work {
+                    guard let keeper = byID[outcome.keeperID] else { continue }
+                    if outcome.favoriteAdded { PHAssetChangeRequest(for: keeper).isFavorite = false }
+                    for id in outcome.albumIDsAdded {
+                        guard let album = collections[id] else { continue }
+                        PHAssetCollectionChangeRequest(for: album)?.removeAssets([keeper] as NSArray)
+                    }
+                }
+            }
+            return true
+        } catch {
+            return false
+        }
+    }
+
+    public func formats(for ids: [String]) async -> [String: String] {
+        var formats: [String: String] = [:]
+        for id in ids {
+            guard let asset = asset(id) else { continue }
+            let resources = PHAssetResource.assetResources(for: asset)
+            let original = resources.first { $0.type == .photo } ?? resources.first
+            guard let type = original.flatMap({ UTType($0.uniformTypeIdentifier) }) else { continue }
+            formats[id] = Self.formatName(type)
+        }
+        return formats
+    }
+
+    public func coverage(since: Date?) async -> LibraryCoverage {
+        var coverage = LibraryCoverage()
+        if let since {
+            let older = PHFetchOptions()
+            older.predicate = NSPredicate(format: "mediaType == %d AND creationDate < %@", PHAssetMediaType.image.rawValue, since as NSDate)
+            older.includeAssetSourceTypes = [.typeUserLibrary]
+            coverage.outsideRange = PHAsset.fetchAssets(with: older).count
+        }
+        let shared = PHAssetCollection.fetchAssetCollections(with: .album, subtype: .albumCloudShared, options: nil)
+        for i in 0..<shared.count {
+            coverage.inSharedAlbums += PHAsset.fetchAssets(in: shared.object(at: i), options: nil).count
+        }
+        return coverage
+    }
+
+    public func videoURL(for id: String) async -> URL? {
+        guard let asset = asset(id), asset.mediaType == .video else { return nil }
+        let options = PHVideoRequestOptions()
+        options.isNetworkAccessAllowed = false
+        options.version = .current
+        options.deliveryMode = .highQualityFormat
+        return await withCheckedContinuation { continuation in
+            manager.requestAVAsset(forVideo: asset, options: options) { avAsset, _, _ in
+                // A slow-motion video comes back as a composition with no single file.
+                continuation.resume(returning: (avAsset as? AVURLAsset)?.url)
+            }
+        }
     }
 
     public func existing(_ ids: [String]) async -> Set<String> {
@@ -156,8 +298,42 @@ public final class PhotoKitSource: PhotoSource {
     // MARK: -
 
     private func asset(_ id: String) -> PHAsset? {
-        if let cached = assets.withLock({ $0[id] }) { return cached }
+        if let cached = assets.withLock({ $0[id] }) ?? videos.withLock({ $0[id] }) { return cached }
         return PHAsset.fetchAssets(withLocalIdentifiers: [id], options: nil).firstObject
+    }
+
+    private func forget(_ ids: Set<String>) {
+        assets.withLock { cache in ids.forEach { cache[$0] = nil } }
+        videos.withLock { cache in ids.forEach { cache[$0] = nil } }
+    }
+
+    /// The user's own library, oldest first. Hidden items are left out by default.
+    private static func options(_ type: PHAssetMediaType, since: Date?) -> PHFetchOptions {
+        let options = PHFetchOptions()
+        var predicates = [NSPredicate(format: "mediaType == %d", type.rawValue)]
+        if let since {
+            predicates.append(NSPredicate(format: "creationDate >= %@", since as NSDate))
+        }
+        options.predicate = NSCompoundPredicate(andPredicateWithSubpredicates: predicates)
+        options.sortDescriptors = [NSSortDescriptor(key: "creationDate", ascending: true)]
+        options.includeAssetSourceTypes = [.typeUserLibrary]
+        return options
+    }
+
+    private static func collections(_ ids: Set<String>) -> [String: PHAssetCollection] {
+        guard !ids.isEmpty else { return [:] }
+        let found = PHAssetCollection.fetchAssetCollections(withLocalIdentifiers: Array(ids), options: nil)
+        var byID: [String: PHAssetCollection] = [:]
+        for i in 0..<found.count { byID[found.object(at: i).localIdentifier] = found.object(at: i) }
+        return byID
+    }
+
+    static func formatName(_ type: UTType) -> String {
+        if type.conforms(to: .heic) || type.conforms(to: .heif) { return "HEIC" }
+        if type.conforms(to: .jpeg) { return "JPEG" }
+        if type.conforms(to: .png) { return "PNG" }
+        if type.conforms(to: .rawImage) { return "RAW" }
+        return type.preferredFilenameExtension?.uppercased() ?? "Other"
     }
 
     private func image(_ asset: PHAsset, size: CGSize, mode: PHImageContentMode, options: PHImageRequestOptions) async throws -> CGImage {
@@ -187,6 +363,13 @@ public final class PhotoKitSource: PhotoSource {
         @unknown default: .denied
         }
     }
+}
+
+/// One set's change, worked out before PhotoKit is asked, so the change block only writes.
+private struct MergePlan: @unchecked Sendable {
+    let keeper: PHAsset
+    let removing: [PHAsset]
+    let outcome: MergeOutcome
 }
 
 /// Carries PhotoKit's image out of its main-thread callback. It's not touched there again.

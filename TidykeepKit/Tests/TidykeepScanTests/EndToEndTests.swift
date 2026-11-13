@@ -14,19 +14,22 @@ func temporaryDirectory(_ name: String = UUID().uuidString) -> URL {
 
 struct ScanRun {
     var groups: [PhotoGroup] = []
+    var copies: [PhotoGroup] = []
     var finished: ScanProgress?
 }
 
 func scanFolder(_ folder: URL, sensitivity: Sensitivity, store: AnalysisStore? = nil) async throws -> ScanRun {
     let analyzer = VisionFrameAnalyzer()
+    // Drawn shapes all look alike to the content model, so the copy pass would join the
+    // single photos to series. It is measured on real photos instead (bench/rules.py).
     let scanner = Scanner(
         source: FolderPhotoSource(folder: folder), analyzer: analyzer,
-        store: store ?? AnalysisStore(url: nil, analyzerVersion: analyzer.version)
+        store: store ?? AnalysisStore(url: nil, analyzerVersion: analyzer.version), findsCopies: false
     )
     var run = ScanRun()
     for try await event in scanner.scan(scope: .everything, config: sensitivity.config) {
         switch event {
-        case .groups(let g): run.groups = g
+        case .results(let r): (run.groups, run.copies) = (r.similar, r.copies)
         case .finished(let p): run.finished = p
         default: break
         }

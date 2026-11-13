@@ -4,7 +4,8 @@ import Foundation
 import TidykeepCore
 import Vision
 
-/// On-device analysis with Apple's Vision framework. Nothing leaves the device.
+/// On-device analysis with Apple's Vision framework and the bundled content model
+/// (`ContentEmbedder`). Nothing leaves the device.
 ///
 /// Request revisions are pinned. A new SDK can change a default revision silently, and
 /// feature prints from different revisions can't be compared, so the revisions are part
@@ -20,11 +21,22 @@ public struct VisionFrameAnalyzer: FrameAnalyzing {
     /// held-out real camera shake, where it helps, and on photos without blur, where it costs recall.
     public var softening: Double
 
-    public init(softening: Double = 0.008) {
+    /// What the photo shows, for series and copies (`FrameSignals.dinoCLS` / `dinoMean`).
+    /// Without it the softened feature print groups series alone and copies aren't looked for.
+    /// It sees the photo unsoftened: copies differ by detail the blur would hide.
+    public var content: ContentEmbedder?
+
+    /// Uses the bundled content model unless told otherwise. If Core ML can't load it, even on
+    /// the CPU, `analyze` throws: a photo is never cached as analyzed without it.
+    public init(softening: Double = 0.008, content: ContentEmbedder? = .bundled) {
         self.softening = softening
+        self.content = content
     }
 
-    public var version: String { "fp2.aes1.fq3.sharp1" + (softening > 0 ? String(format: ".soft%.4f", softening) : "") }
+    /// The content model's version is part of it: a new model, or none, invalidates the cache.
+    public var version: String {
+        "fp2.aes1.fq3.sharp1" + (softening > 0 ? String(format: ".soft%.4f", softening) : "") + (content.map { "." + $0.version } ?? "")
+    }
 
     /// Throws rather than return partial results: what's returned is cached for good, and a
     /// failed request (say, no GPU while the app is in the background) would leave a photo
@@ -33,13 +45,16 @@ public struct VisionFrameAnalyzer: FrameAnalyzing {
         let print = try await GenerateImageFeaturePrintRequest(.revision2).perform(on: softening > 0 ? try Self.softened(image, by: softening) : image)
         let aesthetics = try await CalculateImageAestheticsScoresRequest(.revision1).perform(on: image)
         let faces = try await DetectFaceCaptureQualityRequest(.revision3).perform(on: image)
+        let shown = try await content?.embed(image)
 
         return FrameSignals(
             embedding: QuantizedEmbedding(try Self.vector(print)),
             aesthetics: aesthetics.overallScore,
             isUtility: aesthetics.isUtility,
             sharpness: Sharpness.focusMeasure(image),
-            faceQualities: faces.compactMap { $0.captureQuality?.score }
+            faceQualities: faces.compactMap { $0.captureQuality?.score },
+            dinoCLS: shown.map { QuantizedEmbedding($0.cls) },
+            dinoMean: shown.map { QuantizedEmbedding($0.mean) }
         )
     }
 

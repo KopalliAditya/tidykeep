@@ -7,12 +7,18 @@ import Foundation
 /// revisions included); a new SDK that changes a revision invalidates the whole cache
 /// instead of mixing incompatible feature prints.
 public actor AnalysisStore {
+    /// Bumped whenever what an entry holds changes, so a cache from an older build is
+    /// rebuilt rather than read with fields missing. A file without it is from schema 1.
+    /// 2: the content embeddings (`FrameSignals.dinoCLS` and `dinoMean`).
+    static let schema = 2
+
     struct Entry: Codable {
         var contentVersion: Date?
         var signals: FrameSignals
     }
 
     struct Contents: Codable {
+        var schema: Int?
         var analyzerVersion: String
         var entries: [String: Entry]
     }
@@ -24,10 +30,10 @@ public actor AnalysisStore {
     /// `url == nil` keeps everything in memory.
     public init(url: URL?, analyzerVersion: String) {
         self.url = url
-        let empty = Contents(analyzerVersion: analyzerVersion, entries: [:])
+        let empty = Contents(schema: Self.schema, analyzerVersion: analyzerVersion, entries: [:])
         guard let url, let data = try? Data(contentsOf: url),
               let saved = try? PropertyListDecoder().decode(Contents.self, from: data),
-              saved.analyzerVersion == analyzerVersion
+              saved.schema == Self.schema, saved.analyzerVersion == analyzerVersion
         else {
             contents = empty
             return

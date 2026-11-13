@@ -5,14 +5,16 @@ import Foundation
 public protocol PhotoSource: Sendable {
     func access() async -> LibraryAccess
     func requestAccess() async -> LibraryAccess
-    /// Still photos taken on or after `since`, screenshots excluded, burst frames included.
+    /// Still photos taken on or after `since`, screenshots included (marked `isScreenshot`),
+    /// burst frames included, hidden photos left out.
     func fetchAssets(since: Date?) async throws -> [AssetMeta]
     /// An upright image no larger than `maxPixelSize` on its long edge, for analysis.
     func analysisImage(for id: String, maxPixelSize: Int) async throws -> CGImage
     /// An upright image for display, or nil if it isn't available on the device.
     func thumbnail(for id: String, pixelSize: Int) async -> CGImage?
-    /// Deletes photos (PhotoKit asks the user to confirm) and returns the IDs actually deleted.
-    /// Looks at each photo again first and leaves out any made a favorite or edited since the scan.
+    /// Deletes photos or videos (PhotoKit asks the user to confirm) and returns the IDs actually
+    /// deleted. Looks at each one again first and leaves out any made a favorite or edited since
+    /// the scan.
     func delete(_ ids: [String]) async -> Set<String>
     /// Which of these photos are still in the library.
     func existing(_ ids: [String]) async -> Set<String>
@@ -20,11 +22,127 @@ public protocol PhotoSource: Sendable {
     func changes() -> AsyncStream<Void>
     /// With limited access, lets the user change which photos the app can see.
     func chooseMorePhotos() async
+
+    /// Videos taken on or after `since`, hidden ones left out.
+    func fetchVideos(since: Date?) async throws -> [VideoMeta]
+    /// The user's own albums with what is in them, for "Always keep" and the copy merge.
+    func albums() async -> [PhotoAlbum]
+    /// Merges copy sets in one change, so PhotoKit asks once: each keeper becomes a favorite if
+    /// any of its copies was one and joins every album a copy was in, then the copies are
+    /// deleted. Dates and places are never written. Nil when nothing changed (the user said
+    /// no, or the change failed: PhotoKit applies all of it or none).
+    func merge(_ sets: [CopyMerge]) async -> [MergeOutcome]?
+    /// Takes back what `merge` added to the keepers. The deleted copies stay in Recently Deleted.
+    func undoMerge(_ outcomes: [MergeOutcome]) async -> Bool
+    /// File formats ("HEIC", "JPEG", "PNG") for a few photos, such as the members of a copy set.
+    func formats(for ids: [String]) async -> [String: String]
+    /// Counts for the Coverage sheet that only the library knows.
+    func coverage(since: Date?) async -> LibraryCoverage
+    /// A file the system player can open, or nil when the video is only in iCloud.
+    func videoURL(for id: String) async -> URL?
 }
 
 extension PhotoSource {
     public func existing(_ ids: [String]) async -> Set<String> { Set(ids) }
     public func chooseMorePhotos() async {}
+    public func fetchVideos(since: Date?) async throws -> [VideoMeta] { [] }
+    public func albums() async -> [PhotoAlbum] { [] }
+    public func merge(_ sets: [CopyMerge]) async -> [MergeOutcome]? {
+        let deleted = await delete(sets.flatMap(\.removeIDs))
+        guard !deleted.isEmpty else { return nil }
+        return sets.map { MergeOutcome(keeperID: $0.keeperID, deletedIDs: deleted.intersection($0.removeIDs)) }
+    }
+    public func undoMerge(_ outcomes: [MergeOutcome]) async -> Bool { true }
+    public func formats(for ids: [String]) async -> [String: String] { [:] }
+    public func coverage(since: Date?) async -> LibraryCoverage { LibraryCoverage() }
+    public func videoURL(for id: String) async -> URL? { nil }
+}
+
+/// A video, for Big Videos. Videos are never analyzed, only listed.
+public struct VideoMeta: Sendable, Hashable, Codable, Identifiable {
+    public let id: String
+    public let creationDate: Date
+    public let duration: TimeInterval
+    public let pixelWidth: Int
+    public let pixelHeight: Int
+    public let isFavorite: Bool
+    public let hasAdjustments: Bool
+
+    public init(id: String, creationDate: Date, duration: TimeInterval, pixelWidth: Int, pixelHeight: Int, isFavorite: Bool = false, hasAdjustments: Bool = false) {
+        self.id = id
+        self.creationDate = creationDate
+        self.duration = duration
+        self.pixelWidth = pixelWidth
+        self.pixelHeight = pixelHeight
+        self.isFavorite = isFavorite
+        self.hasAdjustments = hasAdjustments
+    }
+
+    public var isProtected: Bool { isFavorite || hasAdjustments }
+
+    /// How much room it likely takes, for sorting only. iOS 26 has no public way to read a
+    /// video's size, and Tidykeep never shows a guess as a number.
+    public var weight: Double { duration * Double(pixelWidth) * Double(pixelHeight) }
+}
+
+/// One of the user's albums.
+public struct PhotoAlbum: Sendable, Hashable, Identifiable {
+    public let id: String
+    public let title: String
+    public let assetIDs: Set<String>
+    /// False for albums PhotoKit won't let the app add to, such as some synced ones.
+    public let canAddPhotos: Bool
+
+    public init(id: String, title: String, assetIDs: Set<String>, canAddPhotos: Bool = true) {
+        self.id = id
+        self.title = title
+        self.assetIDs = assetIDs
+        self.canAddPhotos = canAddPhotos
+    }
+}
+
+/// One copy set to merge: keep `keeperID`, remove the rest.
+public struct CopyMerge: Sendable, Hashable, Codable {
+    public let keeperID: String
+    public let removeIDs: [String]
+
+    public init(keeperID: String, removeIDs: [String]) {
+        self.keeperID = keeperID
+        self.removeIDs = removeIDs
+    }
+}
+
+/// What a merge did to one set, kept in its receipt so it can be taken back.
+public struct MergeOutcome: Sendable, Hashable, Codable {
+    public var keeperID: String
+    public var deletedIDs: Set<String>
+    /// The keeper was made a favorite because a copy was one.
+    public var favoriteAdded = false
+    /// Albums the keeper was added to.
+    public var albumIDsAdded: [String] = []
+    /// Albums the keeper couldn't be added to, by title, for the receipt.
+    public var albumsSkipped: [String] = []
+
+    public init(keeperID: String, deletedIDs: Set<String>, favoriteAdded: Bool = false, albumIDsAdded: [String] = [], albumsSkipped: [String] = []) {
+        self.keeperID = keeperID
+        self.deletedIDs = deletedIDs
+        self.favoriteAdded = favoriteAdded
+        self.albumIDsAdded = albumIDsAdded
+        self.albumsSkipped = albumsSkipped
+    }
+}
+
+/// Photos the check never looks at, counted by the library.
+public struct LibraryCoverage: Sendable, Hashable {
+    /// Photos older than the chosen range.
+    public var outsideRange = 0
+    /// Photos in Shared Albums, which belong to whoever shared them.
+    public var inSharedAlbums = 0
+
+    public init(outsideRange: Int = 0, inSharedAlbums: Int = 0) {
+        self.outsideRange = outsideRange
+        self.inSharedAlbums = inSharedAlbums
+    }
 }
 
 public enum PhotoSourceError: Error, Equatable {

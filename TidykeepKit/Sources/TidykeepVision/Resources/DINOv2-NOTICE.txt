@@ -1,0 +1,10 @@
+DINOv2 (ViT-S/14, "facebook/dinov2-small")
+Copyright (c) Meta Platforms, Inc. and affiliates.
+https://github.com/facebookresearch/dinov2
+
+Tidykeep includes the DINOv2 ViT-S/14 model weights, licensed under the Apache License,
+Version 2.0 (http://www.apache.org/licenses/LICENSE-2.0); the full text is in
+DINOv2-LICENSE.txt next to this file. The weights were modified for on-device use: converted
+to Core ML format (DINOv2Small.mlmodelc), with ImageNet input normalization folded into the
+first layer, position embeddings resampled for 224x224 input, and weights compressed to 8-bit
+palettes. Distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND.

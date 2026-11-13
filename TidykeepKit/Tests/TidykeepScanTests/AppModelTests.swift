@@ -26,7 +26,7 @@ import Testing
     }
 
     func makeModel() -> AppModel {
-        AppModel(source: FolderPhotoSource(folder: library), analyzer: VisionFrameAnalyzer(), directory: data, defaults: defaults)
+        AppModel(source: FolderPhotoSource(folder: library), analyzer: VisionFrameAnalyzer(), directory: data, defaults: defaults, findsCopies: false)
     }
 
     func waitForScan(_ model: AppModel) async throws {

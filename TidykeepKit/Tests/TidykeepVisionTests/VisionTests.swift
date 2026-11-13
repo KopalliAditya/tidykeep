@@ -61,9 +61,24 @@ import Vision
     }
 
     @Test func versionChangesWithSettingsThatChangeResults() {
-        #expect(VisionFrameAnalyzer().version == "fp2.aes1.fq3.sharp1.soft0.0080")
-        #expect(VisionFrameAnalyzer(softening: 0).version == "fp2.aes1.fq3.sharp1")
+        #expect(VisionFrameAnalyzer().version == "fp2.aes1.fq3.sharp1.soft0.0080.dinos-pal8g.crop256aa")
+        #expect(VisionFrameAnalyzer(content: nil).version == "fp2.aes1.fq3.sharp1.soft0.0080")
+        #expect(VisionFrameAnalyzer(softening: 0, content: nil).version == "fp2.aes1.fq3.sharp1")
         #expect(VisionFrameAnalyzer(softening: 0.01).version != VisionFrameAnalyzer().version)
+    }
+
+    /// The content embeddings come from the same pass, from the unsoftened photo.
+    @Test func theAnalyzerStoresBothContentEmbeddings() async throws {
+        let image = scene.render()
+        let signals = try await VisionFrameAnalyzer().analyze(image)
+        let direct = try await #require(ContentEmbedder.bundled).embed(image)
+        #expect(signals.dinoCLS == QuantizedEmbedding(direct.cls))
+        #expect(signals.dinoMean == QuantizedEmbedding(direct.mean))
+        #expect(signals.dinoCLS?.count == 384 && signals.dinoMean?.count == 384)
+
+        let without = try await VisionFrameAnalyzer(content: nil).analyze(image)
+        #expect(without.dinoCLS == nil && without.dinoMean == nil)
+        #expect(without.embedding == signals.embedding)
     }
 
     @Test func softenedImageKeepsItsSize() throws {

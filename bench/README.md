@@ -90,6 +90,7 @@ bench/.venv/bin/python bench/evaluate.py --skip-app --boot 100   # embeddings on
 tkscan features <folder|list.txt> <out.jsonl>    # per image: id, embedding, sharpness, aesthetics, isUtility, faceQualities, ms
 tkscan rank <images folder> <groups.json> <out.json>   # ranks given groups with PhotoGroup/ShotScorer, best first
 tkscan eval <dataset>/images --sensitivity balanced    # the full scan: candidates, SeriesBuilder, ranking
+tkscan copies <dataset>/images --json    # the copy pass (CopyFinder + LibraryGroups), scored when there is a truth.json
 ```
 
 `features` reads each image the way the app's folder source does (CGImageSource thumbnail with
@@ -99,7 +100,10 @@ the feature print after the app's int8 quantization. `GT_SOFTEN=0` turns the sof
 works directly; photos have no favorites or edits, so the ranking is the analysis alone.
 `scan` and `eval` take `--features <file.jsonl>` (lines as `features` writes them, with any
 embedding in place of the feature print) and `--link`/`--anchor` (distances in that
-embedding's space). That runs another embedding through the app's real scan.
+embedding's space). That runs another embedding through the app's real scan. `eval` and `copies` score the way
+`evaluate.py` does (`score_window`, `score_components`), so their numbers sit next to the
+bench's; `swift_parity.py` puts them in its tkscan column. `eval --json` prints the scores
+with every wrong keeper.
 The apple-* methods also save these ranking signals to `out/<dataset>/signals/<method>.json`.
 
 ## Formats
@@ -115,7 +119,8 @@ The apple-* methods also save these ranking signals to `out/<dataset>/signals/<m
   `unscored_same` (pairs to leave out of pair metrics) and `variant_of` (a re-timed copy of
   another dataset, used only by the time window).
 - `images/truth.json` and `images/manifest.json`: the same groups and times in tkscan's format,
-  so `tkscan eval data/<name>/images` runs the app's pipeline on it.
+  so `tkscan eval data/<name>/images` runs the app's pipeline on it. Its optional `scenes`
+  (file to scene) comes from `unscored_same`, so tkscan leaves out the same pairs.
 
 Positive pairs are all pairs within a group; every other pair is negative.
 

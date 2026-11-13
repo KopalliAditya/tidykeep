@@ -8,9 +8,11 @@ import TidykeepVision
 /// tkscan: run the app's engine on a folder of images, on a Mac.
 ///
 ///   tkscan scan <folder> [--sensitivity strict|balanced|loose] [--json]
-///   tkscan eval <folder> [--sensitivity ...]     folder must contain truth.json
-///     scan, eval and sweep also take --features <file.jsonl> (signals to use instead of analyzing)
-///     and --link / --anchor (override the preset's distances)
+///   tkscan eval <folder> [--sensitivity ...] [--json]  folder must contain truth.json
+///   tkscan copies <folder> [--sensitivity ...] [--json]  the copy pass with the series step; scored
+///                                                when the folder has truth.json (one set per copy set)
+///     scan, eval, copies and sweep also take --features <file.jsonl> (signals to use instead of analyzing)
+///     and --link / --anchor (override the preset's thresholds)
 ///   tkscan distances <folder>                    feature-print distances between neighbors in time
 ///   tkscan demo <folder>                         write a synthetic library with truth.json
 ///   tkscan frames <video> <folder>               consecutive frames at several moments, one subfolder each
@@ -22,7 +24,8 @@ import TidykeepVision
 let usage = """
 usage:
   tkscan scan <folder> [--sensitivity strict|balanced|loose] [--json] [--features <file.jsonl>] [--link <d>] [--anchor <d>]
-  tkscan eval <folder> [--sensitivity strict|balanced|loose] [--features <file.jsonl>] [--link <d>] [--anchor <d>]
+  tkscan eval <folder> [--sensitivity strict|balanced|loose] [--json] [--features <file.jsonl>] [--link <d>] [--anchor <d>]
+  tkscan copies <folder> [--sensitivity strict|balanced|loose] [--json] [--features <file.jsonl>]
   tkscan distances <folder>
   tkscan demo <folder>
   tkscan frames <video> <folder> [--moments 8] [--frames 3] [--step 0.3]
@@ -34,11 +37,21 @@ usage:
 
 features: list.txt has one image path per line, relative to the list's folder or absolute.
 --features: lines as written by `tkscan features` ({"id", "embedding", "sharpness", "aesthetics",
-  "isUtility", "faceQualities"}), one per image in the folder. Those signals fill the cache, so
-  nothing is analyzed and the scan groups with that embedding: to try another embedding in the
-  app's pipeline. --link / --anchor are Euclidean distances in that embedding's space.
+  "isUtility", "faceQualities", optional "dinoCLS", "dinoMean"}), one per image in the folder.
+  Those signals fill the cache, so nothing is analyzed and the scan groups with that embedding:
+  to try another embedding in the app's pipeline. --link / --anchor set both the weighted
+  score's thresholds and the feature-print-only ones (Euclidean distances in that embedding's
+  space when a line has no "dinoMean").
+eval: scores the scan with the bench's pair measures; truth.json's optional "scenes" (file to scene)
+  leaves pairs from two series of one scene unscored. --json prints every wrong keeper.
+copies: the series step, then the copy pass over every photo, joined as the app shows them.
+  --json prints the copy clusters before the join ("clusters"), the groups shown after it, and
+  the scores ("eval") when there is a truth.json.
+  truth.json lists each copy set as a series, its original as "best"; manifest.json's
+  "screenshot" marks what Photos would call a screenshot.
 rank: groups.json is [[file, ...], ...] or {"groups": [[file, ...], ...]}, files in <folder>.
 GT_SOFTEN=<fraction> overrides the analyzer's softening (0 turns it off).
+GT_DINO_MODEL=<model.mlmodelc> GT_DINO_VARIANT=<pal8g|fp16> use another build of the content model.
 """
 
 func fail(_ message: String) -> Never {
@@ -51,16 +64,20 @@ func option(_ name: String, in args: [String]) -> String? {
     return args[i + 1]
 }
 
-/// The sensitivity preset, with --link and --anchor overriding its distances.
+/// The sensitivity preset, with --link and --anchor overriding its thresholds. Each sets both the
+/// weighted score's threshold and the one for pairs without a content embedding, so it means the
+/// same thing for a --features file that has only an `embedding`.
 func groupingConfig(_ sensitivity: Sensitivity) -> GroupingConfig {
     var config = sensitivity.config
     if let raw = option("--link", in: args) {
         guard let value = Float(raw), value > 0 else { fail("bad --link \(raw)") }
-        config.linkDistance = value
+        config.link = value
+        config.softOnlyLink = value
     }
     if let raw = option("--anchor", in: args) {
         guard let value = Float(raw), value > 0 else { fail("bad --anchor \(raw)") }
-        config.anchorDistance = value
+        config.anchor = value
+        config.softOnlyAnchor = value
     }
     return config
 }
@@ -77,6 +94,8 @@ func makeStore(for folder: URL, analyzerVersion: String) async throws -> Analysi
         var aesthetics: Float?
         var isUtility: Bool
         var faceQualities: [Float]
+        var dinoCLS: [Float]?
+        var dinoMean: [Float]?
     }
     var lines: [String: Line] = [:]
     for raw in try String(contentsOfFile: path, encoding: .utf8).split(whereSeparator: \.isNewline) where !raw.isEmpty {
@@ -86,7 +105,8 @@ func makeStore(for folder: URL, analyzerVersion: String) async throws -> Analysi
     for meta in try await FolderPhotoSource(folder: folder).fetchAssets(since: nil) {
         guard let line = lines[meta.id] else { fail("--features has no line for \(meta.id)") }
         let signals = FrameSignals(embedding: QuantizedEmbedding(line.embedding), aesthetics: line.aesthetics,
-                                   isUtility: line.isUtility, sharpness: line.sharpness, faceQualities: line.faceQualities)
+                                   isUtility: line.isUtility, sharpness: line.sharpness, faceQualities: line.faceQualities,
+                                   dinoCLS: line.dinoCLS.map(QuantizedEmbedding.init), dinoMean: line.dinoMean.map(QuantizedEmbedding.init))
         await store.put(signals, for: meta)
     }
     return store
@@ -103,12 +123,29 @@ func scanFolder(_ folder: URL, config: GroupingConfig) async throws -> (groups: 
     var progress = ScanProgress()
     for try await event in scanner.scan(scope: .everything, config: config) {
         switch event {
-        case .groups(let g): groups = g
+        case .results(let r): groups = r.similar + r.copies
         case .finished(let p): progress = p
         default: break
         }
     }
     return (groups.sorted { $0.startDate < $1.startDate }, progress)
+}
+
+/// Every photo in the folder with its signals, from --features when given, else analyzed now.
+/// The copy pass needs all of them, not only the series candidates `Scanner` analyzes.
+func allSignals(_ folder: URL) async throws -> [(meta: AssetMeta, signals: FrameSignals)] {
+    let source = FolderPhotoSource(folder: folder)
+    let analyzer = makeAnalyzer()
+    let store = try await makeStore(for: folder, analyzerVersion: analyzer.version)
+    var out: [(meta: AssetMeta, signals: FrameSignals)] = []
+    for meta in try await source.fetchAssets(since: nil) {
+        if let signals = await store.signals(for: meta) {
+            out.append((meta, signals))
+        } else {
+            out.append((meta, try await analyzer.analyze(try await source.analysisImage(for: meta.id, maxPixelSize: Scanner.analysisPixelSize))))
+        }
+    }
+    return out
 }
 
 /// Every image in a folder, by name; each subfolder of images is one multi-frame source.
@@ -143,10 +180,16 @@ func percentiles(_ values: [Float]) -> String {
     return String(format: "n=%3d  min %.3f  p10 %.3f  p50 %.3f  p90 %.3f  max %.3f", s.count, p(0), p(0.1), p(0.5), p(0.9), p(1))
 }
 
-/// GT_SOFTEN overrides the analyzer's softening, for calibration.
+/// GT_SOFTEN overrides the analyzer's softening, for calibration. GT_DINO_MODEL (a compiled
+/// .mlmodelc) and GT_DINO_VARIANT (its `weights` metadata) swap the content model, to compare
+/// weight compressions on the same images.
 func makeAnalyzer() -> VisionFrameAnalyzer {
-    guard let raw = ProcessInfo.processInfo.environment["GT_SOFTEN"], let value = Double(raw) else { return VisionFrameAnalyzer() }
-    return VisionFrameAnalyzer(softening: value)
+    let env = ProcessInfo.processInfo.environment
+    let softening = env["GT_SOFTEN"].flatMap(Double.init) ?? 0.008
+    guard let path = env["GT_DINO_MODEL"] else { return VisionFrameAnalyzer(softening: softening) }
+    guard let variant = env["GT_DINO_VARIANT"] else { fail("GT_DINO_MODEL needs GT_DINO_VARIANT") }
+    let model = ContentEmbedder(modelURL: URL(fileURLWithPath: path), variant: variant)
+    return VisionFrameAnalyzer(softening: softening, content: model)
 }
 
 /// One ranked group, best first, as JSON.
@@ -228,9 +271,42 @@ case "eval":
     let truth = try SyntheticLibrary.Truth.read(from: folder)
     let (groups, _) = try await scanFolder(folder, config: groupingConfig(sensitivity))
     let eval = GroupingEval.score(groups: groups, truth: truth)
-    print(String(format: "pair precision %.3f  pair recall %.3f  keeper accuracy %.3f  series found %d/%d",
-                 eval.pairPrecision, eval.pairRecall, eval.keeperAccuracy, eval.seriesFound, eval.seriesTotal))
-    eval.wrongKeepers.forEach { print("  wrong keeper: \($0)") }
+    if args.contains("--json") {
+        print(String(decoding: try prettyJSON(eval), as: UTF8.self))
+    } else {
+        print(String(format: "pair precision %.3f  pair recall %.3f  keeper accuracy %.3f  series found %d/%d%@",
+                     eval.pairPrecision, eval.pairRecall, eval.keeperAccuracy, eval.seriesFound, eval.seriesTotal,
+                     eval.unscoredPairs > 0 ? "  unscored pairs \(eval.unscoredPairs)" : ""))
+        // A few examples, not hundreds of lines; --json lists them all.
+        eval.wrongKeepers.prefix(3).forEach { print("  wrong keeper: \($0)") }
+        if eval.wrongKeepers.count > 3 { print("  ... \(eval.wrongKeepers.count - 3) more wrong keepers") }
+    }
+
+case "copies":
+    let config = groupingConfig(sensitivity)
+    let photos = try await allSignals(folder)
+    let shown = LibraryGroups.build(photos, config: config)
+    let clusters = CopyFinder.clusters(photos.map { CopyFinder.Item(meta: $0.meta, signals: $0.signals) })
+    let eval = (try? SyntheticLibrary.Truth.read(from: folder)).map { CopyEval.score(clusters: clusters, shown: shown, truth: $0) }
+    if args.contains("--json") {
+        struct Out: Encodable {
+            var photos: Int
+            var clusters, series, similarShots, copies: [[String]]
+            var joined: Int
+            var eval: CopyEval?
+        }
+        func ids(_ groups: [[AssetMeta]]) -> [[String]] { groups.map { $0.map(\.id) } }
+        print(String(decoding: try prettyJSON(Out(photos: photos.count, clusters: ids(clusters), series: ids(shown.series),
+                                                   similarShots: ids(shown.similarShots), copies: ids(shown.copies),
+                                                   joined: shown.joined, eval: eval)), as: UTF8.self))
+    } else {
+        print("\(photos.count) photos, \(clusters.count) copy clusters -> \(shown.copies.count) copy sets, "
+              + "\(shown.similarShots.count) similar-shot sets, \(shown.series.count) series (\(shown.joined) copies joined)")
+        if let e = eval {
+            print(String(format: "copy pairs precision %.3f  recall %.3f  false %d  sets exact %d/%d  keepers %d/%d",
+                         e.pairPrecision, e.pairRecall, e.falsePairs, e.setsExact, e.setsTotal, e.keepersRight, e.keepersScored))
+        }
+    }
 
 case "distances":
     let source = FolderPhotoSource(folder: folder)
@@ -294,11 +370,11 @@ case "sweep":
     for link in stride(from: 0.25, through: 0.751, by: 0.05) {
         for slack in [0.05, 0.10, 0.15] {
             var config = base
-            config.linkDistance = Float(link)
-            config.anchorDistance = Float(link + slack)
+            (config.link, config.softOnlyLink) = (Float(link), Float(link))
+            (config.anchor, config.softOnlyAnchor) = (Float(link + slack), Float(link + slack))
             var groups: [PhotoGroup] = []
             for try await event in scanner.scan(scope: .everything, config: config) {
-                if case .groups(let g) = event { groups = g }
+                if case .results(let r) = event { groups = r.similar }
             }
             let e = GroupingEval.score(groups: groups, truth: truth)
             print(String(format: "link %.2f anchor %.2f   precision %.3f  recall %.3f  keeper %.3f  found %d/%d",
@@ -366,6 +442,8 @@ case "features":
         var aesthetics: Float?
         var isUtility: Bool
         var faceQualities: [Float]
+        var dinoCLS: [Float]?
+        var dinoMean: [Float]?
         var ms: Double
     }
     let images = try await imageList(folder)
@@ -381,7 +459,8 @@ case "features":
             let s = try await analyzer.analyze(image)
             let ms = (ContinuousClock.now - start) / .milliseconds(1)
             let line = Line(id: id, embedding: s.embedding.dequantized(), sharpness: s.sharpness, aesthetics: s.aesthetics,
-                            isUtility: s.isUtility, faceQualities: s.faceQualities, ms: ms)
+                            isUtility: s.isUtility, faceQualities: s.faceQualities,
+                            dinoCLS: s.dinoCLS?.dequantized(), dinoMean: s.dinoMean?.dequantized(), ms: ms)
             try out.write(contentsOf: try JSONEncoder().encode(line) + Data("\n".utf8))
         } catch {
             failed += 1
