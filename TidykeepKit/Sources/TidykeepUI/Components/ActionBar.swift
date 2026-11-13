@@ -60,11 +60,22 @@ struct ActionBar: View {
 
 extension View {
     /// Pins an `ActionBar` to the bottom, with the content scrolling under it.
+    @ViewBuilder
     func actionBar(secondary: BarAction? = nil, primary: BarAction?) -> some View {
+        #if os(iOS)
         safeAreaBar(edge: .bottom) {
             if secondary != nil || primary != nil {
                 ActionBar(secondary: secondary, primary: primary)
             }
         }
+        #else
+        // The Mac build only draws screens for review, and its snapshots can't capture the
+        // scroll edge effect, which then hides the content.
+        safeAreaInset(edge: .bottom) {
+            if secondary != nil || primary != nil {
+                ActionBar(secondary: secondary, primary: primary)
+            }
+        }
+        #endif
     }
 }

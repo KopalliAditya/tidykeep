@@ -43,8 +43,9 @@ enum Palette {
     static let fill = Color(uiColor: .tertiarySystemFill)
     static let separator = Color(uiColor: .separator)
     #else
-    static let groupedBackground = Color(nsColor: .windowBackgroundColor)
-    static let card = Color(nsColor: .controlBackgroundColor)
+    // The iOS grouped colours, so screens drawn on a Mac for review look like the phone.
+    static let groupedBackground = Color.dynamic(light: 0xF2F2F7, dark: 0x000000, lightHigh: 0xEBEBF0, darkHigh: 0x000000)
+    static let card = Color.dynamic(light: 0xFFFFFF, dark: 0x1C1C1E, lightHigh: 0xFFFFFF, darkHigh: 0x242426)
     static let fill = Color(nsColor: .tertiarySystemFill)
     static let separator = Color(nsColor: .separatorColor)
     #endif

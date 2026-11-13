@@ -541,8 +541,16 @@ public final class PhotosModel {
         let key = "\(id)@\(pixelSize)" as NSString
         if let box = thumbnails.object(forKey: key) { return box.image }
         guard let image = await source.thumbnail(for: id, pixelSize: pixelSize) else { return nil }
-        thumbnails.setObject(ImageBox(image), forKey: key, cost: image.bytesPerRow * image.height)
+        let box = ImageBox(image)
+        thumbnails.setObject(box, forKey: key, cost: image.bytesPerRow * image.height)
+        thumbnails.setObject(box, forKey: id as NSString, cost: 0)
         return image
+    }
+
+    /// The last image loaded for this photo at any size, so a view can draw something at once
+    /// while the right size loads.
+    func cachedThumbnail(for id: String) -> CGImage? {
+        thumbnails.object(forKey: id as NSString)?.image
     }
 
     private func saveLedger() {

@@ -12,7 +12,7 @@ struct PhotoThumbnail: View {
     var body: some View {
         ZStack {
             Rectangle().fill(Palette.fill)
-            if let image {
+            if let image = image ?? photos.cachedThumbnail(for: id) {
                 Image(decorative: image, scale: 1)
                     .resizable()
                     .aspectRatio(contentMode: contentMode)
