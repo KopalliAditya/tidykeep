@@ -1,0 +1,16 @@
+.DS_Store
+.build/
+.swiftpm/
+DerivedData/
+xcuserdata/
+*.xcuserstate
+*.ipa
+*.dSYM.zip
+*.xcarchive
+
+# Benchmark: environment, downloaded data and models, outputs
+bench/.venv/
+bench/data/
+bench/models/
+bench/out/
+__pycache__/

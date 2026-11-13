@@ -1,0 +1,76 @@
+# Generates GoodTake.xcodeproj. After editing, run: xcodegen generate
+name: GoodTake
+options:
+  bundleIdPrefix: com.kopalliaditya
+  deploymentTarget:
+    iOS: "18.0"
+  createIntermediateGroups: true
+settings:
+  base:
+    SWIFT_VERSION: "6.0"
+    MARKETING_VERSION: "1.0"
+    CURRENT_PROJECT_VERSION: "1"
+    # Your 10-character team ID. Set it here: a team picked in Xcode is lost the next
+    # time the project is regenerated.
+    DEVELOPMENT_TEAM: ""
+packages:
+  GoodTakeKit:
+    path: GoodTakeKit
+targets:
+  GoodTake:
+    type: application
+    platform: iOS
+    sources:
+      - path: App
+    dependencies:
+      - package: GoodTakeKit
+        product: GoodTakeUI
+      - package: GoodTakeKit
+        product: GoodTakeVision
+      - package: GoodTakeKit
+        product: GoodTakePhotoKit
+    info:
+      path: App/Info.plist
+      properties:
+        CFBundleDisplayName: Good Take
+        CFBundleShortVersionString: $(MARKETING_VERSION)
+        CFBundleVersion: $(CURRENT_PROJECT_VERSION)
+        LSApplicationCategoryType: public.app-category.photography
+        NSPhotoLibraryUsageDescription: >-
+          Good Take looks through the photos on this iPhone to find near-identical shots and
+          suggest the best one to keep. When you choose, it moves the extras to Recently
+          Deleted. Good Take never sends your photos anywhere.
+        PHPhotoLibraryPreventAutomaticLimitedAccessAlert: true
+        ITSAppUsesNonExemptEncryption: false
+        UILaunchScreen: {}
+        UISupportedInterfaceOrientations:
+          - UIInterfaceOrientationPortrait
+        UIApplicationSceneManifest:
+          UIApplicationSupportsMultipleScenes: false
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.kopalliaditya.goodtake
+        TARGETED_DEVICE_FAMILY: "1"
+        SUPPORTS_MACCATALYST: NO
+        SUPPORTS_MAC_DESIGNED_FOR_IPHONE_IPAD: NO
+        SUPPORTS_XR_DESIGNED_FOR_IPHONE_IPAD: NO
+        ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
+        ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME: AccentColor
+        CODE_SIGN_STYLE: Automatic
+        ENABLE_USER_SCRIPT_SANDBOXING: YES
+        SWIFT_EMIT_LOC_STRINGS: YES
+schemes:
+  GoodTake:
+    build:
+      targets:
+        GoodTake: all
+    run:
+      config: Debug
+    test:
+      config: Debug
+      targets:
+        - package: GoodTakeKit/GoodTakeCoreTests
+        - package: GoodTakeKit/GoodTakeVisionTests
+        - package: GoodTakeKit/GoodTakeScanTests
+    archive:
+      config: Release
