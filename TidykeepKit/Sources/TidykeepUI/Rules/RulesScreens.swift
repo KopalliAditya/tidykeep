@@ -178,24 +178,18 @@ struct RulesView: View {
     }
 }
 
-/// A switch with an icon and a label that wraps at large text sizes. A `Toggle` given a `Label`
-/// cuts its text off at the largest sizes, so the row lays the label out itself. VoiceOver
-/// reads the switch, which carries the same words, rather than the words and then the switch.
+/// A switch with an icon, laid out like the rows above it. A `Toggle` given a `Label` cuts its
+/// text off at the largest sizes; `LabeledContent` wraps the label instead.
 private struct SwitchRow: View {
     let title: String
     let systemImage: String
     @Binding var isOn: Bool
 
     var body: some View {
-        HStack(spacing: Space.m) {
-            Label {
-                Text(title).fixedSize(horizontal: false, vertical: true)
-            } icon: {
-                Image(systemName: systemImage)
-            }
-            .accessibilityHidden(true)
-            Spacer(minLength: 0)
-            Toggle(title, isOn: $isOn).labelsHidden()
+        LabeledContent {
+            Toggle(title, isOn: $isOn).labelsHidden().toggleStyle(.switch)
+        } label: {
+            Label(title, systemImage: systemImage)
         }
     }
 }

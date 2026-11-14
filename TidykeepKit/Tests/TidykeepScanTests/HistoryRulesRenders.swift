@@ -32,6 +32,7 @@ import TidykeepCore
         state.preferences.rules.albumIDs = ["album-family"]
         state.photos.refresh()
         await RenderHarness.render(RulesView(), named: "rules", state: state, height: 2200)
+        await RenderHarness.render(RulesView().dynamicTypeSize(.accessibility3), named: "rules-ax", state: state, height: 1400)
         await RenderHarness.render(AlbumPickerView(), named: "albums", state: state)
         await RenderHarness.render(AboutView(), named: "about", state: state, height: 1500)
 

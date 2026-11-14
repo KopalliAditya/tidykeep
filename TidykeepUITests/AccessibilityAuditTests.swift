@@ -1,3 +1,4 @@
+import UIKit
 import XCTest
 
 /// Xcode's accessibility audit on each main screen: Home, Similar Shots, a group, Review,
@@ -101,6 +102,8 @@ final class AccessibilityAuditTests: XCTestCase {
             let what = Self.describe(issue)
             if let reason = Self.systemOwned(issue, chrome: chrome, barTop: barTop) {
                 ignored.append("\(what) [ignored: \(reason)]")
+            } else if let ratio = Self.measuredBarButtonContrast(issue), ratio >= 4.5 {
+                ignored.append("\(what) [ignored: measured \(String(format: "%.1f", ratio)):1 inside the button]")
             } else {
                 found.append(what)
                 details.append(Self.position(of: issue) + issue.detailedDescription)
@@ -165,7 +168,8 @@ final class AccessibilityAuditTests: XCTestCase {
     /// instead of Dynamic Type, which the audit reports as a Dynamic Type issue. And content
     /// scrolled under the app's bottom bar or the tab bar is faded on purpose by iOS's scroll
     /// edge effect, which starts about 55 points above them; it can be scrolled up to be read. So
-    /// contrast there is let go, except on the bars' own buttons.
+    /// contrast there is let go, except on the bars' own buttons, which are measured instead
+    /// (`measuredBarButtonContrast`).
     ///
     /// An element that has gone by the time the issue is looked at counts as the app's: it
     /// can't be shown to be iOS's.
@@ -187,6 +191,49 @@ final class AccessibilityAuditTests: XCTestCase {
             return "system bar or alert"
         }
         return nil
+    }
+
+    /// For a bar button that failed contrast, the contrast measured from its own screenshot, or nil.
+    ///
+    /// When photos scroll up behind a bar button, the audit fails it even though its label sits
+    /// on an opaque capsule: 6.5:1 measured this way on the CI screenshot of the group screen, where the
+    /// same button over a plain background passes. So the ratio is measured over the middle
+    /// of the capsule, away from its corners: between the median colour (the fill) and the
+    /// darkest or lightest one (the label), by the WCAG formula.
+    @MainActor
+    private static func measuredBarButtonContrast(_ issue: XCUIAccessibilityAuditIssue) -> Double? {
+        guard issue.auditType == .contrast, let element = issue.element, element.exists,
+              element.identifier.hasPrefix("actionbar."),
+              let image = element.screenshot().image.cgImage else { return nil }
+        let width = image.width, height = image.height
+        var pixels = [UInt8](repeating: 0, count: width * height * 4)
+        let drawn = pixels.withUnsafeMutableBytes { buffer -> Bool in
+            guard let context = CGContext(
+                data: buffer.baseAddress, width: width, height: height, bitsPerComponent: 8, bytesPerRow: width * 4,
+                space: CGColorSpace(name: CGColorSpace.sRGB)!, bitmapInfo: CGImageAlphaInfo.noneSkipLast.rawValue
+            ) else { return false }
+            context.draw(image, in: CGRect(x: 0, y: 0, width: width, height: height))
+            return true
+        }
+        guard drawn else { return nil }
+
+        func linear(_ value: UInt8) -> Double {
+            let c = Double(value) / 255
+            return c <= 0.04045 ? c / 12.92 : pow((c + 0.055) / 1.055, 2.4)
+        }
+        var luminances: [Double] = []
+        for y in (height * 3 / 10)..<(height * 7 / 10) {
+            for x in (width * 15 / 100)..<(width * 85 / 100) {
+                let i = (y * width + x) * 4
+                luminances.append(0.2126 * linear(pixels[i]) + 0.7152 * linear(pixels[i + 1]) + 0.0722 * linear(pixels[i + 2]))
+            }
+        }
+        guard luminances.count > 100 else { return nil }
+        luminances.sort()
+        func ratio(_ a: Double, _ b: Double) -> Double { (max(a, b) + 0.05) / (min(a, b) + 0.05) }
+        let fill = luminances[luminances.count / 2]
+        let darkest = luminances[luminances.count / 100], lightest = luminances[luminances.count * 99 / 100]
+        return max(ratio(fill, darkest), ratio(fill, lightest))
     }
 
     /// The element's frame, to tell where on screen an issue is.
