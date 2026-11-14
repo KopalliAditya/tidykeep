@@ -55,6 +55,13 @@ public final class InMemoryContactStore: ContactStoring {
             limitedAccess: authorization() == .limited)
     }
 
+    /// Adds the card with a new identifier in the first card's account (or "local"), as
+    /// Contacts would in the default account.
+    public func add(_ card: ContactCard) async throws -> String {
+        try checkAccess()
+        return await book.add(card)
+    }
+
     /// Every card, whatever the access, for tests to look at.
     public func cards() async -> [ContactCard] {
         await book.cards
@@ -99,6 +106,17 @@ private actor Book {
         } else {
             cards.append(card)
         }
+    }
+
+    func add(_ card: ContactCard) -> String {
+        var card = card
+        card.id = UUID().uuidString
+        card.containerID = cards.first?.containerID ?? "local"
+        card.containerName = cards.first?.containerName ?? ""
+        card.isMe = false
+        card.hasImage = false
+        cards.append(card)
+        return card.id
     }
 
     func groupIDs(of id: String) -> [String] {

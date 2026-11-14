@@ -1,6 +1,7 @@
 import Foundation
 import Observation
 import SwiftUI
+import TidykeepContacts
 import TidykeepCore
 
 /// Everything the app knows, in one place the views share: the three areas (photos, files,
@@ -20,13 +21,15 @@ public final class AppState {
     private var started = false
 
     /// - Parameter directory: where saved data lives; nil keeps everything in memory.
+    /// - Parameter contactStore: the address book; nil uses `ContactsModel`'s default.
     public init(
         photoSource: any PhotoSource,
         analyzer: any FrameAnalyzing,
         directory: URL?,
         defaults: UserDefaults = .standard,
         conditions: @escaping @Sendable () -> DeviceConditions = { .current() },
-        findsCopies: Bool = true
+        findsCopies: Bool = true,
+        contactStore: (any ContactStoring)? = nil
     ) {
         let hooks = TestHooks(defaults: defaults)
         if hooks.resetState { TestHooks.reset(directory: directory, defaults: defaults) }
@@ -43,7 +46,7 @@ public final class AppState {
             conditions: conditions, findsCopies: findsCopies
         )
         self.files = FilesModel(directory: directory, preferences: preferences, history: history, notices: notices)
-        self.contacts = ContactsModel(directory: directory, preferences: preferences, history: history, notices: notices)
+        self.contacts = ContactsModel(directory: directory, preferences: preferences, history: history, notices: notices, store: contactStore)
         self.showsOnboarding = !preferences.onboarded
         self.appearance = hooks.appearance
 
