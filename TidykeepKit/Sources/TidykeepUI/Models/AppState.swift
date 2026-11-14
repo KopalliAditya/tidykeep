@@ -96,14 +96,20 @@ public final class AppState {
         }
     }
 
+    /// Takes a receipt's way back. Does nothing while an undo for it is already running
+    /// (`History.isUndoing`), whichever screen started it.
     public func undo(_ receipt: Receipt) async {
         guard canUndo(receipt) else { return }
-        switch receipt.kind {
-        case .copiesMerged: await photos.undoMerge(receipt)
-        case .keptAll: photos.reviewAgain(receipt)
-        case .filesHeld: await files.putBack(receipt)
-        case .contactsMerged: await contacts.undo(receipt)
-        case .photosRemoved, .screenshotsRemoved, .videosRemoved, .filesPutBack, .filesDeleted: break
+        await history.undoOnce(receipt.id) {
+            // Read it again: a screen may hold a copy from before an earlier undo finished.
+            guard let current = history.receipt(receipt.id), canUndo(current) else { return }
+            switch current.kind {
+            case .copiesMerged: await photos.undoMerge(current)
+            case .keptAll: photos.reviewAgain(current)
+            case .filesHeld: await files.putBack(current)
+            case .contactsMerged: await contacts.undo(current)
+            case .photosRemoved, .screenshotsRemoved, .videosRemoved, .filesPutBack, .filesDeleted: break
+            }
         }
     }
 

@@ -39,7 +39,7 @@ struct OnboardingView: View {
             .frame(maxWidth: .infinity)
         }
         .scrollBounceBehavior(.basedOnSize)
-        .safeAreaBar(edge: .bottom) {
+        .bottomBar {
             VStack(spacing: Space.m) {
                 Button {
                     isContinuing = true
@@ -50,7 +50,7 @@ struct OnboardingView: View {
                         .foregroundStyle(Palette.onAccent)
                         .frame(maxWidth: .infinity, minHeight: 30)
                 }
-                .buttonStyle(.glassProminent)
+                .prominentGlassButton()
                 .tint(Palette.accent)
                 .controlSize(.large)
                 .disabled(isContinuing)

@@ -5,8 +5,10 @@ import TidykeepTestSupport
 import TidykeepVision
 import Testing
 
-func temporaryDirectory(_ name: String = UUID().uuidString) -> URL {
-    let url = FileManager.default.temporaryDirectory.appendingPathComponent("tidykeep-\(name)", isDirectory: true)
+/// A new, empty folder. The name is only a label: every call gets its own folder, so test runs
+/// in other checkouts can't share it.
+func temporaryDirectory(_ name: String = "scratch") -> URL {
+    let url = FileManager.default.temporaryDirectory.appendingPathComponent("tidykeep-\(name)-\(UUID().uuidString)", isDirectory: true)
     try? FileManager.default.removeItem(at: url)
     try? FileManager.default.createDirectory(at: url, withIntermediateDirectories: true)
     return url

@@ -330,7 +330,11 @@ public final class PhotosModel {
     public func keepOnly(_ id: String, in group: PhotoGroup) {
         ledger.decisions.keepOnly(id, in: group)
         saveLedger()
-        notices.announce("Keeping only \(Copy.Similar.photoNumber(id, in: group)). \(Copy.Similar.tally(group, removing: removals(in: group).count))")
+        let removing = removals(in: group).count
+        // Copy sets number their rows best first; similar shots by when they were taken.
+        notices.announce(group.kind == .copies
+            ? Copy.Copies.keepingOnly(id, in: group, removing: removing)
+            : "Keeping only \(Copy.Similar.photoNumber(id, in: group)). \(Copy.Similar.tally(group, removing: removing))")
     }
 
     /// "Keep all": hides this group until a new photo joins it. Undo brings it back.
@@ -425,7 +429,8 @@ public final class PhotosModel {
         await removed(deleted)
         notices.show(Copy.Notices.mergedSets(outcomes.count, copies: deleted.count), systemImage: "square.on.square", undo: Notice.Undo(title: Copy.General.undo) { [weak self] in
             guard let self, let receipt = self.history.receipt(receipt) else { return }
-            await self.undoMerge(receipt)
+            // Shares History's guard, so a tap here while History is undoing it does nothing.
+            await self.history.undoOnce(receipt.id) { await self.undoMerge(receipt) }
         })
     }
 

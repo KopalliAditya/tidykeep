@@ -50,7 +50,7 @@ struct AccessOffView: View {
                 .fixedSize(horizontal: false, vertical: true)
             if let ask {
                 Button(ask.title, action: ask.action)
-                    .buttonStyle(.glassProminent)
+                    .prominentGlassButton()
                     .foregroundStyle(Palette.onAccent)
             } else if Platform.canOpenSettings {
                 Button(Copy.General.openSettings) { Platform.openSettings() }

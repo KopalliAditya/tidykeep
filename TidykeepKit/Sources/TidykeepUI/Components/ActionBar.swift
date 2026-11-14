@@ -29,12 +29,13 @@ struct ActionBar: View {
                 }
                 if let primary {
                     button(primary, prominent: true)
-                        .buttonStyle(.glassProminent)
+                        .prominentGlassButton()
                         .accessibilityIdentifier("actionbar.primary")
                 }
             }
         }
         .controlSize(.large)
+        .tint(Palette.accent)
         .padding(.horizontal, Space.l)
         .padding(.vertical, Space.s)
     }
@@ -60,22 +61,50 @@ struct ActionBar: View {
 
 extension View {
     /// Pins an `ActionBar` to the bottom, with the content scrolling under it.
-    @ViewBuilder
     func actionBar(secondary: BarAction? = nil, primary: BarAction?) -> some View {
-        #if os(iOS)
-        safeAreaBar(edge: .bottom) {
+        bottomBar {
             if secondary != nil || primary != nil {
                 ActionBar(secondary: secondary, primary: primary)
             }
         }
+    }
+
+    /// Pins `content` to the bottom on glass, with the content scrolling under it.
+    @ViewBuilder
+    func bottomBar(@ViewBuilder _ content: () -> some View) -> some View {
+        #if os(iOS)
+        safeAreaBar(edge: .bottom, content: content)
         #else
         // The Mac build only draws screens for review, and its snapshots can't capture the
         // scroll edge effect, which then hides the content.
-        safeAreaInset(edge: .bottom) {
-            if secondary != nil || primary != nil {
-                ActionBar(secondary: secondary, primary: primary)
-            }
-        }
+        safeAreaInset(edge: .bottom, content: content)
+        #endif
+    }
+
+    /// The prominent glass button style. The Mac build draws glass flat, so screens drawn for
+    /// review show the tinted button iOS draws instead.
+    @ViewBuilder
+    func prominentGlassButton() -> some View {
+        #if os(iOS)
+        buttonStyle(.glassProminent)
+        #else
+        buttonStyle(MacProminentStyle())
         #endif
     }
 }
+
+#if !os(iOS)
+/// A capsule filled with the tint, as iOS draws prominent glass. The Mac's own prominent style
+/// draws grey in an offscreen window.
+private struct MacProminentStyle: ButtonStyle {
+    @Environment(\.isEnabled) private var isEnabled
+
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .padding(.vertical, Space.s)
+            .padding(.horizontal, Space.l)
+            .background(Capsule().fill(.tint))
+            .opacity(isEnabled ? (configuration.isPressed ? 0.8 : 1) : 0.4)
+    }
+}
+#endif
