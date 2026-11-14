@@ -101,7 +101,8 @@ enum Copy {
     enum Access {
         static let photosOff = "Photos access is off"
         static let photosOffDetail = "\(appName) needs your photos to find similar shots and copies. Files and contacts still work."
-        static let allowPhotos = "Allow photos"
+        /// Before the system prompt, which has the Allow button (App Review 5.1.1).
+        static let askPhotos = "Continue"
         static func limited(_ n: Int) -> String { "Checking the \(photos(n)) you chose." }
         static let chooseMore = "Choose more photos"
     }

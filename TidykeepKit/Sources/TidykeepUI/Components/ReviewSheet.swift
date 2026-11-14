@@ -105,7 +105,7 @@ struct ReviewSheet: View {
 }
 
 /// Photos as a grid of tiles (the first 23, then "+N"); files and cards as rows.
-private struct ReviewMosaic: View {
+struct ReviewMosaic: View {
     let items: [ReviewItem]
     let marksRemoval: Bool
     private static let shown = 23
@@ -164,21 +164,26 @@ private struct ReviewMosaic: View {
         case .photo:
             EmptyView()
         case .file(let name, let bytes):
-            HStack(spacing: Space.m) {
+            // Whole names, so two similar files can be told apart; the size goes under the
+            // name at accessibility text sizes.
+            HStack(alignment: .firstTextBaseline, spacing: Space.m) {
                 Image(systemName: "doc").foregroundStyle(Palette.accent).frame(width: 24).accessibilityHidden(true)
-                Text(name).lineLimit(1).truncationMode(.middle)
-                Spacer()
-                Text(Copy.bytes(bytes)).foregroundStyle(.secondary).monospacedDigit()
+                AdaptiveStack(spacing: Space.s) {
+                    Text(name)
+                        .fixedSize(horizontal: false, vertical: true)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                    Text(Copy.bytes(bytes)).foregroundStyle(.secondary).monospacedDigit()
+                }
             }
             .font(.subheadline)
             .padding(.horizontal, Space.m)
             .padding(.vertical, Space.s + 2)
             .accessibilityElement(children: .combine)
         case .contact(let name):
-            HStack(spacing: Space.m) {
+            HStack(alignment: .firstTextBaseline, spacing: Space.m) {
                 Image(systemName: "person.crop.circle").foregroundStyle(Palette.accent).frame(width: 24).accessibilityHidden(true)
-                Text(name).lineLimit(1)
-                Spacer()
+                Text(name).fixedSize(horizontal: false, vertical: true)
+                Spacer(minLength: 0)
             }
             .font(.subheadline)
             .padding(.horizontal, Space.m)

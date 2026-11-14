@@ -241,7 +241,7 @@ public final class PhotosModel {
         markedScreenshots.formIntersection(screenshots.map(\.id))
 
         videos = allVideos
-            .filter { $0.duration >= preferences.videoMinimum && !$0.isProtected && !ledger.keptVideoIDs.contains($0.id) && !gone.contains($0.id) }
+            .filter { $0.duration >= preferences.videoMinimum && !$0.isProtected && !kept.contains($0.id) && !ledger.keptVideoIDs.contains($0.id) && !gone.contains($0.id) }
             .sorted { $0.weight != $1.weight ? $0.weight > $1.weight : $0.id < $1.id }
         markedVideos.formIntersection(videos.map(\.id))
 
@@ -437,10 +437,10 @@ public final class PhotosModel {
     /// Takes the albums and favorite back off the kept copies. The removed copies are in
     /// Recently Deleted, where only Photos can bring them back.
     public func undoMerge(_ receipt: Receipt) async {
-        guard receipt.kind == .copiesMerged, receipt.status != .undone,
-              let data = receipt.payload, let outcomes = try? JSONDecoder().decode([MergeOutcome].self, from: data)
-        else { return }
-        guard await source.undoMerge(outcomes) else {
+        guard receipt.kind == .copiesMerged, receipt.status != .undone else { return }
+        guard let data = receipt.payload, let outcomes = try? JSONDecoder().decode([MergeOutcome].self, from: data),
+              await source.undoMerge(outcomes)
+        else {
             notices.show(Copy.Notices.nothingChanged, systemImage: "exclamationmark.triangle")
             return
         }
@@ -521,9 +521,11 @@ public final class PhotosModel {
         }
     }
 
-    /// How many of an interrupted receipt's items are still in the library.
-    func stillThere(_ receipt: Receipt) async -> Int {
-        await source.existing(receipt.itemIDs).count
+    /// How many of an interrupted receipt's items are still in the library, or nil without full
+    /// access, when photos outside the selection can't be told from removed ones.
+    func stillThere(_ receipt: Receipt) async -> Int? {
+        guard await source.access() == .full else { return nil }
+        return await source.existing(receipt.itemIDs).count
     }
 
     // MARK: Saved data

@@ -172,13 +172,19 @@ public final class SystemContactStore: ContactStoring {
             throw ContactStoreError.notMerged
         }
         let account = plan.keeperBefore.containerID
+        let keys = ContactKeys.managed + (plan.photoFromID == nil ? [] : [CNContactImageDataKey])
+        let fetchedKeeper = try fetch(store, ids: [plan.keeperID], keys: keys)[plan.keeperID]
+        if MergeUndo.alreadyUndone(
+            plan, keeper: fetchedKeeper.map { card($0, account: account) }, saved: saved,
+            cards: try cards(store, in: account)) {
+            throw ContactStoreError.notMerged
+        }
         let groups = Dictionary(try groups(store, in: account).map { ($0.identifier, $0) }) { first, _ in first }
         let joined = MergeUndo.groupsJoined(plan, saved: saved)
 
         let save = CNSaveRequest()
         var created: [(contact: CNMutableContact, groupIDs: [String])] = []
-        let keys = ContactKeys.managed + (plan.photoFromID == nil ? [] : [CNContactImageDataKey])
-        if let keeper = try fetch(store, ids: [plan.keeperID], keys: keys)[plan.keeperID] {
+        if let keeper = fetchedKeeper {
             let current = card(keeper, account: account)
             let reverted = try MergeUndo.revertedKeeper(
                 current: current, plan: plan, overwritingLaterEdits: overwritingLaterEdits)
@@ -224,6 +230,16 @@ public final class SystemContactStore: ContactStoring {
     /// A backed-up card as a new contact, with the groups to put it back in.
     private static func restored(_ entry: ContactBackupEntry) -> (contact: CNMutableContact, groupIDs: [String]) {
         (entry.card.newContact(imageData: entry.imageData, isOrganization: entry.isOrganization), entry.groupIDs)
+    }
+
+    /// Every card in an account, with the managed fields only.
+    private static func cards(_ store: CNContactStore, in account: String) throws -> [ContactCard] {
+        let request = CNContactFetchRequest(keysToFetch: ContactKeys.descriptors(ContactKeys.managed))
+        if !account.isEmpty { request.predicate = CNContact.predicateForContactsInContainer(withIdentifier: account) }
+        request.unifyResults = false
+        var cards: [ContactCard] = []
+        try store.enumerateContacts(with: request) { contact, _ in cards.append(card(contact, account: account)) }
+        return cards
     }
 
     /// The groups in an account. Groups live in one account each.

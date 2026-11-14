@@ -75,7 +75,7 @@ struct TidyHomeView: View {
                             Text(Copy.Receipts.sentence(last))
                                 .font(.subheadline.weight(.medium))
                                 .foregroundStyle(.primary)
-                                .lineLimit(2)
+                                .lineLimit(typeSize.isAccessibilitySize ? nil : 2)
                         }
                         Spacer(minLength: 0)
                         Image(systemName: "chevron.right")
@@ -106,16 +106,21 @@ struct TidyHomeView: View {
                     title: Copy.Home.photos,
                     detail: Copy.Access.photosOffDetail,
                     symbol: "photo.on.rectangle",
-                    ask: (Copy.Access.allowPhotos, { Task { await photos.requestAccess() } })
+                    ask: (Copy.Access.askPhotos, { Task { await photos.requestAccess() } })
                 )
             case .denied:
                 AccessOffView(title: Copy.Access.photosOff, detail: Copy.Access.photosOffDetail)
             case .limited, .full:
                 VStack(alignment: .leading, spacing: Space.m) {
                     if photos.access == .limited {
-                        Button(Copy.Access.chooseMore) { Task { await photos.chooseMorePhotos() } }
-                            .font(.subheadline.weight(.medium))
-                            .foregroundStyle(Palette.accent)
+                        Button { Task { await photos.chooseMorePhotos() } } label: {
+                            Text(Copy.Access.chooseMore)
+                                .font(.subheadline.weight(.medium))
+                                .foregroundStyle(Palette.accent)
+                                .frame(minHeight: 44, alignment: .leading)
+                                .contentShape(Rectangle())
+                        }
+                        .buttonStyle(.plain)
                     }
                     LazyVGrid(columns: columns, spacing: Space.m) {
                         card(.similar)

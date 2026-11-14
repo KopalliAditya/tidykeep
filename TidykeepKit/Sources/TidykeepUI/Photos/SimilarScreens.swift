@@ -40,7 +40,7 @@ struct SimilarShotsView: View {
                 title: Copy.Home.photos,
                 detail: Copy.Access.photosOffDetail,
                 symbol: "photo.on.rectangle",
-                ask: (Copy.Access.allowPhotos, { Task { await photos.requestAccess() } })
+                ask: (Copy.Access.askPhotos, { Task { await photos.requestAccess() } })
             ))
         case .denied:
             accessState(AccessOffView(title: Copy.Access.photosOff, detail: Copy.Access.photosOffDetail))

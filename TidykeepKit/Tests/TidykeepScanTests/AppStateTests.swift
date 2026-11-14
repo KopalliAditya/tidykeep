@@ -209,6 +209,28 @@ import TidykeepVision
         #expect(relaunched.history.interrupted.isEmpty)
     }
 
+    @Test func aPhotoChangeCutOffWaitsForFullAccess() async throws {
+        let source = MemoryPhotoSource(photos: [AssetMeta(id: "kept", creationDate: Date())], access: .limited)
+        func launch() -> AppState {
+            AppState(photoSource: source, analyzer: ConstantAnalyzer(), directory: data, defaults: defaults, findsCopies: false)
+        }
+        let id = launch().history.begin(.copiesMerged, requested: 2, itemIDs: ["kept", "elsewhere"])
+
+        // "elsewhere" may just be outside the selection, so nothing is decided yet.
+        let limited = launch()
+        await limited.recoverInterrupted()
+        #expect(limited.history.interrupted.map(\.id) == [id])
+
+        _ = await source.requestAccess()
+        let full = launch()
+        await full.recoverInterrupted()
+        let receipt = try #require(full.history.receipt(id))
+        #expect(receipt.status == .partial)
+        #expect(receipt.completed == 1)
+        // Cut off before the merge saved its outcomes, so there's nothing to take back.
+        #expect(!full.canUndo(receipt))
+    }
+
     @Test func forgetAnalysisStartsOver() async throws {
         let state = try await started()
         let before = state.photos.similar.map(\.id)

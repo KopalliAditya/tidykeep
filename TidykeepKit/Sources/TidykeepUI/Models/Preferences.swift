@@ -15,8 +15,6 @@ public final class Preferences {
     /// Large Files lists files at least this big.
     public var largeFileMinimum: Int64 { didSet { defaults.set(largeFileMinimum, forKey: Keys.largeFileMinimum) } }
     public var onboarded: Bool { didSet { defaults.set(onboarded, forKey: Keys.onboarded) } }
-    /// Rules › My Card: when on, the user's own card is left out of duplicate matches. Either
-    /// way, My Card is only ever the card that stays in a merge.
 
     public static let videoMinimums: [TimeInterval] = [60, 180, 300, 600]
     public static let largeFileMinimums: [Int64] = [50, 100, 250, 500, 1_000].map { $0 * 1_000_000 }

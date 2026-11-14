@@ -56,6 +56,11 @@ extension Copy {
         static let foldersHeader = "Folders"
         static let addFolder = "Add folder"
         static let removeFolder = "Stop checking"
+        static func removeUnopenableTitle(_ name: String) -> String { "Stop checking \u{201C}\(name)\u{201D}?" }
+        static func removeUnopenableMessage(_ n: Int) -> String {
+            "\(files(n)) from it \(n == 1 ? "is" : "are") in Holding, and \(appName) can't open the folder to put \(n == 1 ? "it" : "them") back. Choose the folder again first, or stop checking it and leave \(n == 1 ? "the file" : "them") in \u{201C}\(HoldingFolder.name)\u{201D} inside it, where the Files app shows \(n == 1 ? "it" : "them")."
+        }
+        static let chooseFolderAgain = "Choose Folder Again"
         static let available = "Checked each time"
         static let unavailable = "Can't be opened. Choose it again."
         static func unavailableNote(_ name: String) -> String {

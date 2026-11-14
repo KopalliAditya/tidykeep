@@ -24,6 +24,30 @@ enum MergeUndo {
         return result
     }
 
+    /// Whether this undo already ran and only its record was lost, as when the app quits
+    /// between the save and the receipt. Then the removed cards are back under new
+    /// identifiers, so they can't be found by their old ones, and running it again would add
+    /// them a second time. True when the keeper has nothing left to revert and each removed
+    /// card has a card in the keeper's account with the same details. (The keeper, when it was
+    /// missing and re-created, is one of `cards` too.)
+    static func alreadyUndone(_ plan: MergePlan, keeper: ContactCard?, saved: [String: ContactBackupEntry], cards: [ContactCard]) -> Bool {
+        var wanted = plan.removedIDs.compactMap { saved[$0]?.card }
+        guard wanted.count == plan.removedIDs.count else { return false }
+        if let keeper {
+            guard let reverted = try? revertedKeeper(current: keeper, plan: plan, overwritingLaterEdits: false),
+                  reverted.hasSameDetails(as: keeper)
+            else { return false }
+        } else {
+            wanted.append(saved[plan.keeperID]?.card ?? plan.keeperBefore)
+        }
+        var others = cards.filter { $0.id != plan.keeperID && $0.containerID == plan.keeperBefore.containerID }
+        for card in wanted {
+            guard let i = others.firstIndex(where: { $0.hasSameDetails(as: card) }) else { return false }
+            others.remove(at: i)
+        }
+        return true
+    }
+
     /// The groups the merge put the keeper in: a removed card's groups that the keeper, as
     /// backed up, wasn't in. Undo takes the keeper out of these only. Without the keeper's
     /// entry its own groups aren't known, so none.

@@ -170,7 +170,7 @@ final class DemoPhotoSource: PhotoSource, @unchecked Sendable {
         [
             PhotoAlbum(id: "album-family", title: "Family", assetIDs: ["series00_frame0.jpg"]),
             PhotoAlbum(id: "album-receipts", title: "Receipts", assetIDs: ["screenshot-1.png"]),
-            PhotoAlbum(id: "album-trip", title: "Lisbon trip", assetIDs: []),
+            PhotoAlbum(id: "album-trip", title: "Lisbon trip", assetIDs: ["video-beach"]),
         ]
     }
 

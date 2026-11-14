@@ -56,7 +56,7 @@ struct ContactsRulesSection: View {
     private var accessButton: some View {
         switch contacts.access {
         case .notDetermined:
-            Button(Copy.Home.allowContacts) {
+            Button(Copy.Contacts.continue) {
                 isAsking = true
                 Task {
                     await contacts.requestAccess()
@@ -66,6 +66,7 @@ struct ContactsRulesSection: View {
             .disabled(isAsking)
             .rowButtonStyle()
             .frame(minHeight: 44)
+            .accessibilityHint(Copy.Contacts.continueHint)
             .accessibilityIdentifier("rules.contacts.allow")
         case .denied:
             // Restricted access can't be turned on in Settings.

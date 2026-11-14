@@ -73,7 +73,7 @@ enum HistoryDemo {
         move(expired, back: 45 * day)
 
         let expiredMerge = history.begin(.copiesMerged, requested: 2, itemIDs: ["old-a", "old-b"])
-        history.finish(expiredMerge, completed: 2)
+        history.finish(expiredMerge, completed: 2) { $0.payload = mergePayload(keeper: "old-keeper", deleted: ["old-a", "old-b"]) }
         move(expiredMerge, back: 40 * day)
 
         let deleted = history.begin(.filesDeleted, requested: 3, bytes: 1_284_517_888)
@@ -104,7 +104,7 @@ enum HistoryDemo {
         // Today: a merge, a keep-all that was taken back, a check cut off by quitting, and a
         // fresh removal.
         let merged = history.begin(.copiesMerged, requested: 3, itemIDs: ["a", "b", "c"])
-        history.finish(merged, completed: 3)
+        history.finish(merged, completed: 3) { $0.payload = mergePayload(keeper: "keeper", deleted: ["a", "b", "c"]) }
         move(merged, back: 5_400)
 
         let undone = history.begin(.keptAll, requested: 4, itemIDs: ["group-x"])
@@ -157,6 +157,16 @@ enum HistoryDemo {
         #expect(Copy.Receipts.dayHeader(today, now: now, calendar: calendar) == "Today")
         #expect(Copy.Receipts.dayHeader(days[1].day, now: now, calendar: calendar) == "Yesterday")
         #expect(Copy.Receipts.dayHeader(days[2].day, now: now, calendar: calendar) == Copy.day(days[2].day))
+    }
+
+    @Test func aKeptAlbumKeepsItsVideos() async throws {
+        let state = try await RenderHarness.demoState()
+        let photos = state.photos
+        #expect(photos.videos.contains { $0.id == "video-beach" })
+        state.preferences.rules.albumIDs.insert("album-trip")
+        photos.refresh()
+        #expect(!photos.videos.contains { $0.id == "video-beach" })
+        #expect(photos.videos.contains { $0.id == "video-concert" })
     }
 
     @Test func rulesPersistAcrossLaunches() {
@@ -278,7 +288,7 @@ enum HistoryDemo {
         #expect(Copy.Receipts.status(photos, now: now) == "Gone from Recently Deleted")
 
         // Past Recently Deleted, a merge's favorite and albums still come back with Undo changes.
-        let oldMerge = Receipt(kind: .copiesMerged, date: date, status: .done, requested: 2, completed: 2, deadline: now.addingTimeInterval(-1))
+        let oldMerge = Receipt(kind: .copiesMerged, date: date, status: .done, requested: 2, completed: 2, deadline: now.addingTimeInterval(-1), payload: mergePayload(keeper: "k", deleted: ["a", "b"]))
         #expect(makeState().canUndo(oldMerge))
         #expect(Copy.Receipts.recoverySteps(oldMerge, now: now).last?.contains("Undo changes") == true)
         #expect(Copy.Receipts.recoveryIntro(oldMerge, now: now).contains("favorite and albums can"))
@@ -324,4 +334,9 @@ enum HistoryDemo {
         #expect(all.allSatisfy { !$0.contains("//") && !$0.contains("!") })
         #expect(Copy.About.free == "Free. No purchases, ads, tips or subscriptions.")
     }
+}
+
+/// What a finished merge saves, so its receipt can be undone.
+private func mergePayload(keeper: String, deleted: Set<String>) -> Data? {
+    try? JSONEncoder().encode([MergeOutcome(keeperID: keeper, deletedIDs: deleted)])
 }

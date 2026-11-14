@@ -66,7 +66,7 @@ enum SampleFiles {
     private static func writeFilled(_ url: URL, bytes: Int) throws {
         let chunkSize = 1_000_000
         var chunk = Data(count: chunkSize)
-        chunk.withUnsafeMutableBytes { buffer in
+        chunk.withUnsafeMutableBytes { (buffer: UnsafeMutableRawBufferPointer) in
             for i in 0..<chunkSize { buffer[i] = UInt8(truncatingIfNeeded: i % 251 + 1) }
         }
         guard FileManager.default.createFile(atPath: url.path, contents: nil) else {

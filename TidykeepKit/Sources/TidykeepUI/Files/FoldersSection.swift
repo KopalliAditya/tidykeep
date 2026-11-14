@@ -8,6 +8,8 @@ struct FoldersSection: View {
     @ViewState private var picking = false
     /// The folder being chosen again, or nil when adding one.
     @ViewState private var choosingAgain: UUID?
+    /// An unopenable folder with held files, waiting for the user to say what to do.
+    @ViewState private var confirmingRemove: FilesModel.Folder?
 
     var body: some View {
         Section {
@@ -41,6 +43,18 @@ struct FoldersSection: View {
             Text(Copy.Files.foldersFooter).fixedSize(horizontal: false, vertical: true)
         }
         .folderPicker(isPresented: $picking, replacing: choosingAgain)
+        .confirmationDialog(
+            confirmingRemove.map { Copy.Files.removeUnopenableTitle($0.name) } ?? "",
+            isPresented: Binding(get: { confirmingRemove != nil }, set: { if !$0 { confirmingRemove = nil } }),
+            titleVisibility: .visible,
+            presenting: confirmingRemove
+        ) { folder in
+            Button(Copy.Files.chooseFolderAgain) { choose(replacing: folder.id) }
+            Button(Copy.Files.removeFolder, role: .destructive) { Task { await files.removeFolder(folder.id) } }
+            Button(Copy.General.cancel, role: .cancel) {}
+        } message: { folder in
+            Text(Copy.Files.removeUnopenableMessage(files.heldInUnopenableFolder(folder.id)))
+        }
     }
 
     private func choose(replacing id: UUID?) {
@@ -49,7 +63,11 @@ struct FoldersSection: View {
     }
 
     private func remove(_ folder: FilesModel.Folder) {
-        Task { await files.removeFolder(folder.id) }
+        if files.heldInUnopenableFolder(folder.id) > 0 {
+            confirmingRemove = folder
+        } else {
+            Task { await files.removeFolder(folder.id) }
+        }
     }
 }
 

@@ -412,8 +412,16 @@ public final class FilesModel {
         rescan(keepingError: !allAdded)
     }
 
+    /// Held files from a folder that can't be opened now, which removing it would leave
+    /// behind. The screen asks before removing such a folder.
+    func heldInUnopenableFolder(_ id: UUID) -> Int {
+        guard urls[id] == nil || unavailableIDs.contains(id) else { return 0 }
+        return held.count { $0.folderID == id }
+    }
+
     /// Stops checking a folder. Its held files go back where they were first; if any can't,
-    /// the folder stays so they can still be reached.
+    /// the folder stays so they can still be reached. When the folder can't be opened, they
+    /// stay in "Held by Tidykeep" and Holding forgets them: the screen has asked first.
     public func removeFolder(_ id: UUID) async {
         guard let ref = refs.first(where: { $0.id == id }) else { return }
         await prepare()
@@ -606,6 +614,13 @@ public final class FilesModel {
         return await finishHold(receipt, moved: moved, errors: errors)
     }
 
+    /// Where a file in a move started. Saved when the move begins, so a move cut off before
+    /// it finished can still be undone; the finished move saves the held ids instead.
+    struct HeldPlace: Codable, Hashable {
+        let folderID: UUID
+        let path: String
+    }
+
     private func beginHold(_ files: [FileItem]) -> UUID {
         changeCount += 1
         return history.begin(
@@ -613,7 +628,8 @@ public final class FilesModel {
             requested: files.count,
             itemIDs: files.map(\.id),
             bytes: files.reduce(0) { $0 + $1.unsharedBytes },
-            title: files.count == 1 ? files[0].name : nil
+            title: files.count == 1 ? files[0].name : nil,
+            payload: try? JSONEncoder().encode(files.map { HeldPlace(folderID: $0.folderID, path: $0.relativePath) })
         )
     }
 
@@ -653,8 +669,9 @@ public final class FilesModel {
         let ids = receipt.payload.flatMap { try? JSONDecoder().decode([UUID].self, from: $0) } ?? []
         var items = held.filter { ids.contains($0.id) }
         if ids.isEmpty {
-            // Cut off before it finished: match by where the files were.
-            items = held.filter { item in receipt.itemIDs.contains { $0.hasSuffix("/" + item.originalRelativePath) } }
+            // Cut off before it finished: match by the folder and path each file started at.
+            let places = Set(receipt.payload.flatMap { try? JSONDecoder().decode([HeldPlace].self, from: $0) } ?? [])
+            items = held.filter { places.contains(HeldPlace(folderID: $0.folderID, path: $0.originalRelativePath)) }
         }
         guard !items.isEmpty else {
             notices.show(Copy.Files.nothingToPutBack, systemImage: "info.circle")

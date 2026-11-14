@@ -58,7 +58,7 @@ extension Copy {
         static let albumsFooter = "Every photo in an album you choose is kept: it's never suggested for removal."
         static let noAlbumsTitle = "No albums"
         static let noAlbumsDetail = "Albums you make in Photos show up here."
-        static let photosOffDetail = "Allow photos to choose albums to keep."
+        static let photosOffDetail = "Turn on photo access to choose albums to keep."
         static let searchAlbums = "Search albums"
     }
 

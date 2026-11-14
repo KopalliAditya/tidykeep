@@ -48,7 +48,9 @@ public final class PhotoKitSource: PhotoSource {
                 metas.append(AssetMeta(
                     id: asset.localIdentifier,
                     creationDate: created,
-                    contentVersion: asset.adjustmentTimestamp,
+                    // The edit's date, so an edit or a revert checks the photo again. (The
+                    // iOS 26 SDK has no adjustment timestamp.)
+                    contentVersion: asset.hasAdjustments ? asset.modificationDate : nil,
                     pixelWidth: asset.pixelWidth,
                     pixelHeight: asset.pixelHeight,
                     burstID: asset.burstIdentifier,

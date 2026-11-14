@@ -56,6 +56,19 @@ import TidykeepTestSupport
         }
         await RenderHarness.render(reviewBody, named: "holding-review", state: state, height: 900)
 
+        // Whole names, so near-identical files can be told apart; at accessibility sizes the
+        // size goes under the name.
+        let rows = ScrollView {
+            ReviewMosaic(items: [
+                .file(id: "a", name: "Quarterly planning notes for the spring offsite, final.pdf", bytes: 4_812_000),
+                .file(id: "b", name: "Quarterly planning notes for the spring offsite, final copy.pdf", bytes: 4_812_000),
+                .contact(id: "c", name: "Dr. Alexandra Catherine Montgomery-Rodriguez"),
+            ], marksRemoval: true)
+            .padding(Space.l)
+        }
+        await RenderHarness.render(rows, named: "review-rows", state: state, height: 600)
+        await RenderHarness.render(rows.dynamicTypeSize(.accessibility3), named: "review-rows-ax", state: state, height: 1000)
+
         await files.putAllBack()
         #expect(files.holdingCount == 0)
 

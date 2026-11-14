@@ -146,11 +146,19 @@ final class AppDriver {
         )
     }
 
-    /// Waits for the photo check to finish: the coverage line reads "Checked 40 photos ...".
+    /// Waits for the photo check to finish. The coverage line shows from the moment a check
+    /// starts ("Checked 0 photos"), so it isn't enough: the check is done once the progress
+    /// line ("scan.status") has gone and neither photo card still says "Checking…" (copies
+    /// can finish after the similar shots).
     @discardableResult
     func waitForPhotoCheck(timeout: TimeInterval = 180, file: StaticString = #filePath, line: UInt = #line) -> String {
         let coverage = element("coverage.line")
-        let done = until(timeout, every: 2) { coverage.exists && coverage.label.hasPrefix("Checked ") }
+        let status = element("scan.status")
+        let cards = [element("home.card.similar"), element("home.card.copies")]
+        let done = until(timeout, every: 2) {
+            coverage.exists && !status.exists
+                && cards.allSatisfy { $0.exists && !$0.label.contains("Checking") }
+        }
         let label = coverage.exists ? coverage.label : "(no coverage line)"
         XCTAssertTrue(done, "The photo check didn't finish in \(Int(timeout))s: \(label)", file: file, line: line)
         return label

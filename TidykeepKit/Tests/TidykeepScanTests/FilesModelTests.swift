@@ -280,6 +280,23 @@ import TidykeepFiles
         #expect(await model.stillThere(receipt) == 1)
     }
 
+    @Test func aMoveCutOffBeforeItFinishedCanStillBeUndone() async throws {
+        let model = await seeded()
+        let copy = try #require(model.duplicateGroups.first?.movable.first)
+        #expect(await model.moveToHolding(try #require(model.duplicateGroups.first)))
+        func cutOff(folderID: UUID) throws -> Receipt {
+            let places = [FilesModel.HeldPlace(folderID: folderID, path: copy.relativePath)]
+            let id = history.begin(.filesHeld, requested: 1, itemIDs: [copy.id], payload: try JSONEncoder().encode(places))
+            return try #require(history.receipt(id))
+        }
+        // The same path in another folder isn't this file.
+        await model.putBack(try cutOff(folderID: UUID()))
+        #expect(model.holdingCount == 1)
+        await model.putBack(try cutOff(folderID: copy.folderID))
+        #expect(model.holdingCount == 0)
+        #expect(FileManager.default.fileExists(atPath: copy.url.path))
+    }
+
     // MARK: The 7-day rule
 
     @Test func recentFilesAreKeptSafeUntilTheRuleIsOff() async throws {
@@ -380,6 +397,25 @@ import TidykeepFiles
         #expect(model.holdingCount == 0)
         #expect(model.lastError == nil)
         #expect(FileManager.default.fileExists(atPath: sample.appendingPathComponent("Trip notes copy.pdf").path))
+    }
+
+    @Test func removingAnUnopenableFolderAsksAboutItsHeldFiles() async throws {
+        let first = await seeded()
+        #expect(first.heldInUnopenableFolder(try #require(first.folders.first?.id)) == 0)
+        #expect(await first.moveToHolding(try #require(first.duplicateGroups.first)))
+        #expect(first.heldInUnopenableFolder(try #require(first.folders.first?.id)) == 0)
+        let id = try breakBookmark()
+
+        let model = makeModel()
+        await model.start()
+        await model.scanned()
+        #expect(model.heldInUnopenableFolder(id) == 1)
+        await model.removeFolder(id)
+        #expect(model.folderCount == 0)
+        #expect(model.holdingCount == 0)
+        // The file stays in the holding folder, where the Files app shows it.
+        let holding = sample.appendingPathComponent(HoldingFolder.name)
+        #expect(try FileManager.default.contentsOfDirectory(atPath: holding.path).contains("Trip notes copy.pdf"))
     }
 
     @Test func choosingARenamedFolderAgainTakesTheOldOnesPlace() async throws {

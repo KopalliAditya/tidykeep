@@ -170,7 +170,9 @@ private actor Book {
         if plan.photoFromID != nil, savedKeeper == nil {
             throw ContactStoreError.backupMissingCards([plan.keeperID])
         }
-        guard plan.removedIDs.allSatisfy({ card($0) == nil }) else { throw ContactStoreError.notMerged }
+        guard plan.removedIDs.allSatisfy({ card($0) == nil }),
+              !MergeUndo.alreadyUndone(plan, keeper: card(plan.keeperID), saved: saved, cards: cards)
+        else { throw ContactStoreError.notMerged }
 
         // Work everything out first, so a refusal changes nothing.
         var keeper: ContactCard?

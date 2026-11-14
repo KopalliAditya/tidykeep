@@ -32,7 +32,10 @@ public final class AppState {
         contactStore: (any ContactStoring)? = nil
     ) {
         let hooks = TestHooks(defaults: defaults)
+        // Never on a phone: a stray launch argument mustn't wipe someone's History.
+        #if targetEnvironment(simulator) || os(macOS)
         if hooks.resetState { TestHooks.reset(directory: directory, defaults: defaults) }
+        #endif
 
         let preferences = Preferences(defaults: defaults)
         let history = History(directory: directory)
@@ -94,7 +97,9 @@ public final class AppState {
     public func canUndo(_ receipt: Receipt) -> Bool {
         guard receipt.status == .done || receipt.status == .partial else { return false }
         switch receipt.kind {
-        case .copiesMerged, .keptAll, .filesHeld, .contactsMerged: return true
+        // A merge cut off before it finished saved nothing to take back.
+        case .copiesMerged: return receipt.payload != nil
+        case .keptAll, .filesHeld, .contactsMerged: return true
         case .photosRemoved, .screenshotsRemoved, .videosRemoved, .filesPutBack, .filesDeleted: return false
         }
     }
@@ -117,12 +122,15 @@ public final class AppState {
     }
 
     /// Finishes receipts whose change was cut off by the app quitting, from what is true now.
+    /// Photo changes wait for full library access: with less, photos the app can't see would
+    /// count as removed.
     func recoverInterrupted() async {
         for receipt in history.interrupted {
             let stillThere: Int
             switch receipt.kind {
             case .photosRemoved, .screenshotsRemoved, .videosRemoved, .copiesMerged:
-                stillThere = await photos.stillThere(receipt)
+                guard let count = await photos.stillThere(receipt) else { continue }
+                stillThere = count
             case .filesHeld, .filesPutBack, .filesDeleted:
                 stillThere = await files.stillThere(receipt)
             case .contactsMerged:

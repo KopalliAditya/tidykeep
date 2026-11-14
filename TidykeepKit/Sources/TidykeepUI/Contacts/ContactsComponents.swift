@@ -106,7 +106,8 @@ extension View {
     /// Mac renders draw the button, which does nothing there.
     @ViewBuilder
     func contactsAccessPicker(isPresented: Binding<Bool>, onChange: @escaping @MainActor @Sendable () -> Void) -> some View {
-        #if os(iOS)
+        // Not on Mac Catalyst, which the app doesn't ship on.
+        #if os(iOS) && !targetEnvironment(macCatalyst)
         contactAccessPicker(isPresented: isPresented) { _ in
             Task { @MainActor in onChange() }
         }

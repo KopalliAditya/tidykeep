@@ -15,7 +15,9 @@ extension Copy {
             ("externaldrive.badge.checkmark", "Saves a vCard backup on this iPhone before every merge, so you can undo it."),
             ("iphone", "Your contacts never leave this iPhone."),
         ]
+        /// Before the system prompt, which has the Allow button (App Review 5.1.1).
         static let `continue` = "Continue"
+        static let continueHint = "Shows the system prompt for contacts access."
 
         static let accessOff = "Contacts access is off"
         static let accessOffDetail = "To find duplicate cards, open the Settings app, tap Apps, then \(appName), then Contacts, and choose Full Access. Photos and files still work."

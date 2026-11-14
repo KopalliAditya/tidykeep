@@ -198,6 +198,21 @@ import TidykeepContacts
         }
     }
 
+    @Test func anUndoWhoseRecordWasLostIsntDoneTwice() async throws {
+        let store = store()
+        let plan = try plan()
+        let backup = try await store.backup(ids: plan.backupIDs)
+        try await store.apply(plan)
+        _ = try await store.undo(plan, backup: backup)
+        let restored = await store.cards()
+        #expect(restored.count == 4)
+        // The app quit before saving that the undo happened, so it's tried again.
+        await #expect(throws: ContactStoreError.notMerged) {
+            try await store.undo(plan, backup: backup, overwritingLaterEdits: true)
+        }
+        #expect(await store.cards() == restored)
+    }
+
     @Test func accessIsChecked() async throws {
         let denied = InMemoryContactStore(cards: [keeper], access: .denied)
         await #expect(throws: ContactStoreError.notAuthorized) { try await denied.fetchCards() }

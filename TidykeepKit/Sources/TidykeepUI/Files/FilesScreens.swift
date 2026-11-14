@@ -549,6 +549,11 @@ struct HoldingView: View {
         .accessibilityElement(children: .ignore)
         .accessibilityLabel(Copy.Files.heldRowLabel(item, folder: location))
         .accessibilityValue(folderGone ? Copy.Files.folderGone : "")
+        // The Choose Where button is inside the combined row, so the row acts as it: a
+        // double-tap with VoiceOver, or its name with Voice Control.
+        .accessibilityAddTraits(folderGone ? .isButton : [])
+        .accessibilityAction { if folderGone { place(item) } }
+        .accessibilityInputLabels(folderGone ? [Copy.Files.chooseWhere, item.name] : [item.name])
         .swipeActions(edge: .leading) {
             Button(putBackTitle) { putBack(item) }
                 .tint(Palette.accent)
