@@ -178,18 +178,25 @@ struct RulesView: View {
     }
 }
 
-/// A switch with an icon, laid out like the rows above it. A `Toggle` given a `Label` cuts its
-/// text off at the largest sizes; `LabeledContent` wraps the label instead.
+/// A switch with an icon, lined up with the `Label` rows above it. The words are the switch's
+/// own label, as in a plain `Toggle`: set apart from it, in a `Label` inside the `Toggle` or
+/// beside a switch with its label hidden, they fail the accessibility audit's Dynamic Type
+/// and clipped text checks.
 private struct SwitchRow: View {
     let title: String
     let systemImage: String
     @Binding var isOn: Bool
+    /// A `Label` row's icon column and the gap after it, measured on an iPhone at the default size.
+    @ScaledMetric(relativeTo: .body) private var iconWidth: CGFloat = 24
+    @ScaledMetric(relativeTo: .body) private var gap: CGFloat = 17
 
     var body: some View {
-        LabeledContent {
-            Toggle(title, isOn: $isOn).labelsHidden().toggleStyle(.switch)
-        } label: {
-            Label(title, systemImage: systemImage)
+        HStack(spacing: gap) {
+            Image(systemName: systemImage)
+                .foregroundStyle(.tint)
+                .frame(width: iconWidth)
+                .accessibilityHidden(true)
+            Toggle(title, isOn: $isOn).toggleStyle(.switch)
         }
     }
 }
