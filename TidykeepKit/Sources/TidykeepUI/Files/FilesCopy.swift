@@ -106,6 +106,7 @@ extension Copy {
         static func copyRowLabel(_ item: FileItem, folder: String) -> String {
             "\(item.name), in \(folder), \(Copy.bytes(item.bytes)), changed \(day(item.modified))"
         }
+        static func nameIn(_ name: String, folder: String) -> String { "\(name) in \(folder)" }
         static func keeperChanged(_ name: String) -> String { "Keeping \u{201C}\(name)\u{201D}." }
         static let changedRecently = "Changed recently, so it stays"
         static func moveButton(_ n: Int) -> String { "Move \(n.formatted()) to Holding" }

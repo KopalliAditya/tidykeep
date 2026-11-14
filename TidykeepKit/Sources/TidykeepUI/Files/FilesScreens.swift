@@ -279,9 +279,16 @@ struct DuplicateFileSetView: View {
         .accessibilityValue(value)
         .accessibilityAddTraits(.isButton)
         .accessibilityHint(Copy.Files.keepThisInsteadHint(group.keeper.name))
-        .accessibilityInputLabels([Text(item.name)])
+        .accessibilityInputLabels([Text(voiceControlName(item, in: group))])
         .accessibilityAction { keep() }
         .accessibilityAction(named: Copy.Files.keepThisCopyInstead) { keep() }
+    }
+
+    /// What Voice Control shows for a copy: its name, or its name and folder when another copy
+    /// in the set has the same name, so no two rows read the same.
+    private func voiceControlName(_ item: FileItem, in group: FilesModel.DuplicateGroup) -> String {
+        let shared = group.items.contains { $0.id != item.id && $0.name == item.name }
+        return shared ? Copy.Files.nameIn(item.name, folder: files.location(of: item)) : item.name
     }
 }
 
