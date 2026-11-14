@@ -58,8 +58,14 @@ struct RulesView: View {
                     Label(Copy.Rules.albums, systemImage: "rectangle.stack")
                 }
             }
-            Toggle(Copy.Rules.screenshotsInAlbums, isOn: keepScreenshotsInAlbums)
-            SwitchRow(title: Copy.Rules.recentFiles, systemImage: "doc.badge.clock", isOn: hideRecentFiles)
+            SwitchRow(
+                title: Copy.Rules.screenshotsInAlbums, systemImage: "camera.viewfinder",
+                identifier: "rules.switch.screenshots", isOn: keepScreenshotsInAlbums
+            )
+            SwitchRow(
+                title: Copy.Rules.recentFiles, systemImage: "doc.badge.clock",
+                identifier: "rules.switch.recentFiles", isOn: hideRecentFiles
+            )
         } header: {
             Text(Copy.Rules.alwaysKeep).foregroundStyle(Palette.secondaryText)
         } footer: {
@@ -179,24 +185,41 @@ struct RulesView: View {
 }
 
 /// A switch with an icon, lined up with the `Label` rows above it. The words are the switch's
-/// own label, as in a plain `Toggle`: set apart from it, in a `Label` inside the `Toggle` or
-/// beside a switch with its label hidden, they fail the accessibility audit's Dynamic Type
-/// and clipped text checks.
+/// own label, as in a plain `Toggle`. At accessibility text sizes the switch goes under the
+/// words, as the values do in the rows above, so a long label keeps its words whole; VoiceOver
+/// still finds one switch.
 private struct SwitchRow: View {
     let title: String
     let systemImage: String
+    let identifier: String
     @Binding var isOn: Bool
+    @Environment(\.dynamicTypeSize) private var typeSize
     /// A `Label` row's icon column and the gap after it, measured on an iPhone at the default size.
     @ScaledMetric(relativeTo: .body) private var iconWidth: CGFloat = 24
     @ScaledMetric(relativeTo: .body) private var gap: CGFloat = 17
 
     var body: some View {
-        HStack(spacing: gap) {
-            Image(systemName: systemImage)
-                .foregroundStyle(.tint)
-                .frame(width: iconWidth)
-                .accessibilityHidden(true)
-            Toggle(title, isOn: $isOn)
+        if typeSize.isAccessibilitySize {
+            VStack(alignment: .leading, spacing: Space.s) {
+                Label(title, systemImage: systemImage)
+                Toggle(title, isOn: $isOn)
+                    .toggleStyle(.switch)
+                    .labelsHidden()
+            }
+            .accessibilityRepresentation {
+                Toggle(title, isOn: $isOn)
+            }
+            .accessibilityIdentifier(identifier)
+        } else {
+            HStack(spacing: gap) {
+                Image(systemName: systemImage)
+                    .foregroundStyle(.tint)
+                    .frame(width: iconWidth)
+                    .accessibilityHidden(true)
+                Toggle(title, isOn: $isOn)
+                    .toggleStyle(.switch)
+                    .accessibilityIdentifier(identifier)
+            }
         }
     }
 }
