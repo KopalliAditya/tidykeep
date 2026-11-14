@@ -425,7 +425,8 @@ public final class PhotosModel {
         await removed(deleted)
         notices.show(Copy.Notices.mergedSets(outcomes.count, copies: deleted.count), systemImage: "square.on.square", undo: Notice.Undo(title: Copy.General.undo) { [weak self] in
             guard let self, let receipt = self.history.receipt(receipt) else { return }
-            await self.undoMerge(receipt)
+            // Shares History's guard, so a tap here while History is undoing it does nothing.
+            await self.history.undoOnce(receipt.id) { await self.undoMerge(receipt) }
         })
     }
 

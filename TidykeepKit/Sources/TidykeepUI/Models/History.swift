@@ -71,6 +71,26 @@ public final class History {
         save()
     }
 
+    // MARK: Undo in progress
+
+    /// Receipts whose undo is running right now. Kept in memory only: an undo cut off by the
+    /// app quitting leaves its receipt as it was, so it can be tried again.
+    public private(set) var undoing: Set<UUID> = []
+
+    public func isUndoing(_ id: UUID) -> Bool { undoing.contains(id) }
+
+    /// Runs a receipt's undo unless one is already running for it, so the History row, the
+    /// receipt and the notice banner can never start the same undo twice.
+    /// - Returns: false when an undo for this receipt was already running.
+    @discardableResult
+    public func undoOnce(_ id: UUID, _ body: @MainActor () async -> Void) async -> Bool {
+        guard !undoing.contains(id) else { return false }
+        undoing.insert(id)
+        defer { undoing.remove(id) }
+        await body()
+        return true
+    }
+
     public var interrupted: [Receipt] { log.interrupted }
 
     public func recover(_ id: UUID, stillThere: Int) {

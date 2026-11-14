@@ -13,11 +13,21 @@ import TidykeepCore
         let state = try await RenderHarness.demoState()
         let ids = try await HistoryDemo.fill(state)
 
+        // The demo covers every status, and the interrupted change came back as partial.
+        let statuses = Set(state.history.receipts.map(\.status))
+        #expect(statuses == [.done, .partial, .failed, .undone])
+        #expect(state.history.interrupted.isEmpty)
+        #expect(state.history.receipt(ids.photos).map(state.canUndo) == false)
+        #expect(state.history.receipt(ids.expiredMerge).map(state.canUndo) == true)
+
         await RenderHarness.render(HistoryView(), named: "history", state: state, height: 1500)
         await RenderHarness.render(ReceiptView(receiptID: ids.photos), named: "receipt-photos", state: state, height: 1100)
         await RenderHarness.render(ReceiptView(receiptID: ids.files), named: "receipt-files", state: state, height: 1100)
         await RenderHarness.render(ReceiptView(receiptID: ids.contacts), named: "receipt-contacts", state: state)
         await RenderHarness.render(ReceiptView(receiptID: ids.expired), named: "receipt-expired", state: state)
+        await RenderHarness.render(ReceiptView(receiptID: ids.merged), named: "receipt-merged", state: state, height: 1200)
+        await RenderHarness.render(ReceiptView(receiptID: ids.expiredMerge), named: "receipt-merge-expired", state: state)
+        await RenderHarness.render(ReceiptView(receiptID: ids.failed), named: "receipt-failed", state: state)
 
         state.preferences.rules.albumIDs = ["album-family"]
         state.photos.refresh()
@@ -40,6 +50,9 @@ enum HistoryDemo {
         var files: UUID
         var contacts: UUID
         var expired: UUID
+        var expiredMerge: UUID
+        var merged: UUID
+        var failed: UUID
     }
 
     static func fill(_ state: AppState) async throws -> IDs {
@@ -58,6 +71,10 @@ enum HistoryDemo {
         let expired = history.begin(.photosRemoved, requested: 14, itemIDs: (0..<14).map { "gone-\($0)" })
         history.finish(expired, completed: 14)
         move(expired, back: 45 * day)
+
+        let expiredMerge = history.begin(.copiesMerged, requested: 2, itemIDs: ["old-a", "old-b"])
+        history.finish(expiredMerge, completed: 2)
+        move(expiredMerge, back: 40 * day)
 
         let deleted = history.begin(.filesDeleted, requested: 3, bytes: 1_284_517_888)
         history.finish(deleted, completed: 3)
@@ -106,7 +123,7 @@ enum HistoryDemo {
         history.finish(photos, completed: 9)
         move(photos, back: 600)
 
-        return IDs(photos: photos, files: files, contacts: contacts, expired: expired)
+        return IDs(photos: photos, files: files, contacts: contacts, expired: expired, expiredMerge: expiredMerge, merged: merged, failed: failed)
     }
 }
 
@@ -151,7 +168,9 @@ enum HistoryDemo {
 
         preferences.rules.albumIDs.insert("album-family")
         preferences.rules.keepScreenshotsInAlbums = false
-        preferences.rules.hideFilesChangedWithinDays = 0
+        let hideRecent = RulesView.hideRecentFiles(preferences)
+        #expect(hideRecent.wrappedValue)
+        hideRecent.wrappedValue = false
         preferences.protectsMyCard = false
         preferences.scope = .last30Days
         preferences.sensitivity = .loose
@@ -163,6 +182,11 @@ enum HistoryDemo {
         #expect(!relaunched.rules.keepScreenshotsInAlbums)
         // Off is 0 days: nil reads back as the 7-day default.
         #expect(relaunched.rules.hideFilesChangedWithinDays == 0)
+        let relaunchedToggle = RulesView.hideRecentFiles(relaunched)
+        #expect(!relaunchedToggle.wrappedValue)
+        relaunchedToggle.wrappedValue = true
+        #expect(Preferences(defaults: defaults).rules.hideFilesChangedWithinDays == RulesView.recentFileDays)
+        #expect(RulesView.hideRecentFiles(Preferences(defaults: defaults)).wrappedValue)
         #expect(!relaunched.protectsMyCard)
         #expect(relaunched.scope == .last30Days)
         #expect(relaunched.sensitivity == .loose)
@@ -179,12 +203,47 @@ enum HistoryDemo {
         #expect(state.canUndo(receipt))
         #expect(Copy.Receipts.actionTitle(receipt.kind) == "Review again")
 
-        await takeBack(receipt, state: state)
+        await state.undo(receipt)
         let after = try #require(state.history.receipt(id))
         #expect(after.status == .undone)
         #expect(!state.canUndo(after))
         #expect(Copy.Receipts.status(after) == "Undone")
         #expect(state.notices.text == Copy.Notices.reviewAgain)
+    }
+
+    @Test func anUndoRunsOnceWhereverItStarts() async throws {
+        let state = makeState()
+        let id = state.history.begin(.keptAll, requested: 3, itemIDs: ["group"])
+        state.history.finish(id, completed: 3)
+        let receipt = try #require(state.history.receipt(id))
+
+        // Hold an undo open, as a slow merge or Put back would.
+        let (opened, open) = AsyncStream.makeStream(of: Void.self)
+        let (released, release) = AsyncStream.makeStream(of: Void.self)
+        let first = Task { @MainActor in
+            await state.history.undoOnce(id) {
+                open.yield()
+                for await _ in released { break }
+            }
+        }
+        for await _ in opened { break }
+        #expect(state.history.isUndoing(id))
+
+        // A second tap, from any screen, does nothing while the first runs.
+        #expect(await state.history.undoOnce(id) {} == false)
+        await state.undo(receipt)
+        #expect(state.history.receipt(id)?.status == .done)
+
+        release.yield()
+        #expect(await first.value)
+        #expect(!state.history.isUndoing(id))
+
+        // Once it's free, Undo works, and a stale copy of the receipt can't run it again.
+        await state.undo(receipt)
+        #expect(state.history.receipt(id)?.status == .undone)
+        state.notices.dismiss()
+        await state.undo(receipt)
+        #expect(state.notices.text == nil)
     }
 
     @Test func interruptedReceiptsShowWhatWasFound() async {
@@ -205,12 +264,28 @@ enum HistoryDemo {
         #expect(Copy.Receipts.recoverySteps(photos, now: now).count == 5)
         #expect(Copy.Receipts.recoveryIntro(photos, now: now).contains("Recently Deleted"))
         #expect(Copy.Receipts.fileNameList(photos) == nil)
-        // Photos never show a size, even if one was recorded.
-        #expect(!Copy.Receipts.howManyValue(photos).contains("B"))
+        // Photos never show a size, even if one was recorded; files always do.
+        #expect(Copy.Receipts.sizeLine(photos) == nil)
+        for kind in Receipt.Kind.allCases {
+            let receipt = Receipt(kind: kind, date: date, status: .done, requested: 1, completed: 1, bytes: 2_048)
+            let isFile = kind == .filesHeld || kind == .filesPutBack || kind == .filesDeleted
+            #expect((Copy.Receipts.sizeLine(receipt) != nil) == isFile, "\(kind)")
+        }
+        // The date is in the status; the Undo line and the intro don't repeat it.
+        let until = Copy.day(photos.deadline!)
+        #expect(Copy.Receipts.status(photos, now: now).contains(until))
+        #expect(!Copy.Receipts.undoLine(photos, now: now).contains(until))
+        #expect(!Copy.Receipts.recoveryIntro(photos, now: now).contains(until))
 
         photos.deadline = now.addingTimeInterval(-1)
         #expect(Copy.Receipts.recoverySteps(photos, now: now).isEmpty)
         #expect(Copy.Receipts.status(photos, now: now) == "Gone from Recently Deleted")
+
+        // Past Recently Deleted, a merge's favorite and albums still come back with Undo changes.
+        let oldMerge = Receipt(kind: .copiesMerged, date: date, status: .done, requested: 2, completed: 2, deadline: now.addingTimeInterval(-1))
+        #expect(makeState().canUndo(oldMerge))
+        #expect(Copy.Receipts.recoverySteps(oldMerge, now: now).last?.contains("Undo changes") == true)
+        #expect(Copy.Receipts.recoveryIntro(oldMerge, now: now).contains("favorite and albums can"))
 
         let deleted = Receipt(kind: .filesDeleted, date: date, status: .done, requested: 2, completed: 2, bytes: 2_000_000)
         #expect(Copy.Receipts.recoverySteps(deleted, now: now).isEmpty)
@@ -221,6 +296,9 @@ enum HistoryDemo {
         #expect(names.hasPrefix("file-1.pdf\nfile-2.pdf"))
         #expect(names.hasSuffix("and 2 more"))
         #expect(Copy.Receipts.actionTitle(held.kind) == "Put back")
+        // Held files sit at the top of the chosen folder, not next to where they were.
+        #expect(Copy.Receipts.recoveryIntro(held, now: now).contains("at the top of the folder you chose"))
+        #expect(Copy.Receipts.actionRowHint(title: "Undo", hint: Copy.Receipts.actionHint(.contactsMerged)) == "Undo restores the cards from the backup.")
         #expect(Copy.Receipts.exactSize(18_420_224).hasSuffix("(\(Int64(18_420_224).formatted()) bytes)"))
 
         for kind in Receipt.Kind.allCases {

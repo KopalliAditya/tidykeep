@@ -34,6 +34,12 @@ extension Copy.Receipts {
         }
     }
 
+    /// The row's hint when it has an action: "Undo restores the cards from the backup."
+    static func actionRowHint(title: String, hint: String) -> String {
+        guard let first = hint.first else { return "" }
+        return "\(title) \(first.lowercased())\(hint.dropFirst())"
+    }
+
     // MARK: Row
 
     /// "Today", "Yesterday", or the date, for a day's header.
@@ -107,6 +113,15 @@ extension Copy.Receipts {
         }
     }
 
+    /// The exact size, for file receipts only. Photos and videos never show a size, even when
+    /// one was recorded.
+    static func sizeLine(_ r: Receipt) -> String? {
+        switch r.kind {
+        case .filesHeld, .filesPutBack, .filesDeleted: r.bytes.map(exactSize)
+        case .photosRemoved, .screenshotsRemoved, .videosRemoved, .copiesMerged, .keptAll, .contactsMerged: nil
+        }
+    }
+
     /// File names, one per line, for file receipts. Long lists end with "and N more".
     static func fileNameList(_ r: Receipt, limit: Int = 8) -> String? {
         switch r.kind {
@@ -120,7 +135,8 @@ extension Copy.Receipts {
         return names.count > limit ? shown + "\nand \((names.count - limit).formatted()) more" : shown
     }
 
-    /// Where it went and until when, or "Can't be undone." The Reason card's Undo line.
+    /// The way back, or "Can't be undone." The Reason card's Undo line. The date items stay
+    /// in Recently Deleted is in the receipt's status, so it isn't said again here.
     static func undoLine(_ r: Receipt, now: Date = Date()) -> String {
         switch r.status {
         case .undone: return "Already undone."
@@ -130,11 +146,11 @@ extension Copy.Receipts {
         }
         switch r.kind {
         case .photosRemoved, .screenshotsRemoved, .videosRemoved:
-            if let deadline = r.deadline, deadline > now { return Copy.Reason.recentlyDeleted(until: deadline) }
-            return "Photos has emptied Recently Deleted, so these can't be brought back."
+            if let deadline = r.deadline, deadline > now { return "Recover them in the Photos app. The steps are below." }
+            return Copy.Reason.cantBeUndone
         case .copiesMerged:
             if let deadline = r.deadline, deadline > now {
-                return "Undo changes takes the favorite and albums back. The removed copies are in Recently Deleted in Photos until \(Copy.day(deadline))."
+                return "Undo changes takes the favorite and albums back. Recover the removed copies in the Photos app."
             }
             return "Undo changes takes the favorite and albums back. The removed copies are gone from Recently Deleted."
         case .keptAll: return "Review again puts it back in the list."
@@ -158,15 +174,18 @@ extension Copy.Receipts {
         case .done, .partial: break
         }
         switch r.kind {
-        case .photosRemoved, .screenshotsRemoved, .videosRemoved, .copiesMerged:
+        case .photosRemoved, .screenshotsRemoved, .videosRemoved:
             guard let deadline = r.deadline, deadline > now else {
-                return "Photos keeps removed items in Recently Deleted for \(Receipt.recentlyDeletedDays) days, then deletes them for good. These are past that, so they can't be brought back."
+                return "Photos keeps removed items in Recently Deleted for \(days), then deletes them for good. These are past that, so they can't be brought back."
             }
-            return r.kind == .copiesMerged
-                ? "The removed copies are in Recently Deleted in the Photos app until \(Copy.day(deadline)). Recover them there."
-                : "They're in Recently Deleted in the Photos app until \(Copy.day(deadline)). Recover them there."
+            return "Photos keeps them in Recently Deleted for \(days), then deletes them for good."
+        case .copiesMerged:
+            guard let deadline = r.deadline, deadline > now else {
+                return "The removed copies are past their \(days) in Recently Deleted, so they can't be brought back. The favorite and albums can."
+            }
+            return "Photos keeps the removed copies in Recently Deleted for \(days), then deletes them for good."
         case .keptAll: return "Nothing was removed. The group just isn't suggested again."
-        case .filesHeld: return "The files wait in the Held by \(Copy.appName) folder, inside the folder they came from."
+        case .filesHeld: return "The files wait in the Held by \(Copy.appName) folder, at the top of the folder you chose."
         case .filesPutBack: return "The files are back where they were. There's nothing to get back."
         case .filesDeleted: return "These files were deleted permanently. They can't be brought back."
         case .contactsMerged: return "Before merging, \(Copy.appName) saved a backup of the cards on this iPhone."
@@ -178,7 +197,11 @@ extension Copy.Receipts {
         guard r.status == .done || r.status == .partial else { return [] }
         switch r.kind {
         case .photosRemoved, .screenshotsRemoved, .videosRemoved, .copiesMerged:
-            guard let deadline = r.deadline, deadline > now else { return [] }
+            let undoChanges = "To take the favorite and albums back off the kept photo, tap Undo changes below."
+            guard let deadline = r.deadline, deadline > now else {
+                // The copies are gone for good, but the favorite and albums can still come back.
+                return r.kind == .copiesMerged ? [undoChanges] : []
+            }
             var steps = [
                 "Open the Photos app.",
                 "Tap Collections, then scroll down to Utilities.",
@@ -186,9 +209,7 @@ extension Copy.Receipts {
                 "Tap Select and choose the ones to bring back.",
                 "Tap Recover.",
             ]
-            if r.kind == .copiesMerged {
-                steps.append("To take the favorite and albums back off the kept photo, tap Undo changes below.")
-            }
+            if r.kind == .copiesMerged { steps.append(undoChanges) }
             return steps
         case .keptAll:
             return ["Tap Review again below. The group goes back in the list to look at again."]
@@ -207,6 +228,8 @@ extension Copy.Receipts {
             return []
         }
     }
+
+    private static var days: String { "\(Receipt.recentlyDeletedDays) days" }
 
     /// VoiceOver reads the step number first.
     static func stepLabel(_ index: Int, _ text: String) -> String { "Step \(index). \(text)" }

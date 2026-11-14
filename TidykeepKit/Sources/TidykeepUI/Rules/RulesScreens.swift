@@ -91,15 +91,20 @@ struct RulesView: View {
         }
     }
 
-    /// Off is saved as 0 days rather than nil: `ProtectionRules` reads a missing value as the
-    /// 7-day default, so nil would turn the rule back on at the next launch.
-    private var hideRecentFiles: Binding<Bool> {
+    private var hideRecentFiles: Binding<Bool> { Self.hideRecentFiles(preferences) }
+
+    /// The "files changed in the last 7 days" toggle. Off is saved as 0 days rather than nil:
+    /// `ProtectionRules` reads a missing value as the 7-day default, so nil would turn the rule
+    /// back on at the next launch.
+    static func hideRecentFiles(_ preferences: Preferences) -> Binding<Bool> {
         Binding {
             (preferences.rules.hideFilesChangedWithinDays ?? 0) > 0
         } set: {
-            preferences.rules.hideFilesChangedWithinDays = $0 ? 7 : 0
+            preferences.rules.hideFilesChangedWithinDays = $0 ? recentFileDays : 0
         }
     }
+
+    static let recentFileDays = 7
 
     // MARK: What to look at
 
@@ -362,7 +367,6 @@ private struct AlbumRow: View {
         .feedback(.selection, trigger: isChosen)
         .accessibilityElement(children: .ignore)
         .accessibilityLabel("\(album.title), \(Copy.photos(album.assetIDs.count))")
-        .accessibilityValue(isChosen ? Copy.Rules.kept : "")
         .accessibilityAddTraits(isChosen ? [.isButton, .isSelected] : .isButton)
     }
 
@@ -436,13 +440,18 @@ struct AboutView: View {
         .inlineNavigationTitle()
     }
 
+    /// The mark and name are the heading; the tagline and the Free line are read on their own,
+    /// so the headings rotor lands on just the name.
     private var header: some View {
         VStack(spacing: Space.m) {
-            AppMark(size: typeSize.isAccessibilitySize ? 64 : 76)
-            VStack(spacing: Space.xs) {
+            VStack(spacing: Space.m) {
+                AppMark(size: typeSize.isAccessibilitySize ? 64 : 76)
                 Text(Copy.appName)
                     .font(.title2.bold())
-                    .accessibilityAddTraits(.isHeader)
+            }
+            .accessibilityElement(children: .combine)
+            .accessibilityAddTraits(.isHeader)
+            VStack(spacing: Space.xs) {
                 Text(Copy.About.tagline)
                     .font(.subheadline)
                     .foregroundStyle(.secondary)
@@ -455,7 +464,6 @@ struct AboutView: View {
         }
         .frame(maxWidth: .infinity)
         .padding(.vertical, Space.s)
-        .accessibilityElement(children: .combine)
     }
 
     private func bullets(_ title: String, _ items: [(symbol: String, text: String)], tint: Color) -> some View {

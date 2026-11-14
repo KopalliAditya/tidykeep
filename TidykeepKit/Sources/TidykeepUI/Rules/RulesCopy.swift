@@ -82,7 +82,6 @@ extension Copy {
         static let noAlbumsDetail = "Albums you make in Photos show up here."
         static let photosOffDetail = "Allow photos to choose albums to keep."
         static let searchAlbums = "Search albums"
-        static let kept = "Kept"
     }
 
     enum About {
