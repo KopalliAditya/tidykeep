@@ -152,8 +152,9 @@ schemes:
         - package: TidykeepKit/TidykeepFilesTests
         - package: TidykeepKit/TidykeepContactsTests
         - name: TidykeepUITests
-        # Reads the library the UI tests left behind and adds a photo of its own, so CI runs
-        # it after them (each phase with -only-testing, in this order).
+        # Reads the library the end-to-end UI tests left behind and adds photos and an album
+        # of its own, so CI runs it after them and before access is turned off (each phase
+        # with -only-testing, in that order).
         - name: TidykeepAppTests
     archive:
       config: Release

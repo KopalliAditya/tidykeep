@@ -2,8 +2,10 @@
 //
 // What a unit test can't do is confirm PhotoKit's own "Delete" prompt: only a person (or a
 // UI test, through SpringBoard) can. EndToEndUITests covers deleting and merging; here the
-// read side is checked, plus the two calls the app relies on around a change: `existing(_:)`
-// to tell which photos are still there, and `changes()` to hear that something changed.
+// read side is checked, plus the calls the app relies on around a change: `existing(_:)`
+// to tell which photos are still there, `changes()` to hear that something changed, and
+// `undoMerge` to take a keeper back out of an album. Since the UI tests run first, this is
+// also where the library is checked for what they removed.
 //
 // Simulator only, so a device's own library is never read.
 #if targetEnvironment(simulator)
@@ -124,7 +126,84 @@ struct PhotoKitIntegrationTests {
         #expect(await source.existing([id]) == [id])
     }
 
+    /// What the UI tests removed, checked in the library itself: every burst's sharp frame
+    /// and every copy set's original is still there, and every seeded photo that's gone is
+    /// one the app may offer to remove. Photos are matched by the name of the file
+    /// `simctl addmedia` imported them from (PHAssetResource's originalFilename). The names
+    /// found are printed to the log, so a name Photos changed on import is easy to tell
+    /// from a photo removed by mistake.
+    @Test(.enabled(if: TestEnvironment.seedKeepers != nil))
+    func theUITestsRemovedOnlyExtras() throws {
+        let names = try #require(TestEnvironment.seedNames, "TK_SEED_NAMES isn't set").map { $0.lowercased() }
+        let keepers = try #require(TestEnvironment.seedKeepers).map { $0.lowercased() }
+        let extras = Set(try #require(TestEnvironment.seedExtras, "TK_SEED_EXTRAS isn't set").map { $0.lowercased() })
+        let found = Self.originalFilenames()
+        let missing = names.filter { !found.contains($0) }
+        let lostKeepers = keepers.filter { !found.contains($0) }
+        let lostOthers = missing.filter { !extras.contains($0) }
+        print("""
+            theUITestsRemovedOnlyExtras: \(names.count - missing.count) of \(names.count) seeded photos found \
+            by file name, among \(found.count) names in the library.
+              Missing: \(missing.isEmpty ? "none" : missing.joined(separator: ", "))
+              In the library: \(found.sorted().joined(separator: ", "))
+            """)
+
+        // None found at all means the names didn't map, not that everything was removed.
+        try #require(
+            missing.count < names.count,
+            "No seeded file name in the library; Photos names them: \(found.sorted().prefix(8).joined(separator: ", "))"
+        )
+        #expect(lostKeepers.isEmpty, "Keepers gone from the library: \(lostKeepers.joined(separator: ", "))")
+        #expect(lostOthers.isEmpty, "Gone but not extras: \(lostOthers.joined(separator: ", "))")
+    }
+
+    /// Undoing a merge takes the keeper back out of the album the merge added it to. The
+    /// photo and album are this test's own: a favorite dated 2001, like the one above, and an
+    /// album whose name nobody else has. Both stay in the simulator's library, since
+    /// deleting either needs a person to confirm.
+    @Test func undoingAMergeTakesTheKeeperOutOfItsAlbum() async throws {
+        let id = try await Self.addPhoto(favorite: true, date: Date(timeIntervalSince1970: 978_350_400))
+        let title = "TidykeepCI " + UUID().uuidString.prefix(8).lowercased()
+        let albumID = try await Self.addAlbum(titled: title, holding: id)
+        let before = await source.albums().first(where: { $0.id == albumID })
+        try #require(before?.assetIDs.contains(id) == true, "The new album \"\(title)\" doesn't hold the new photo")
+
+        // What a merge saves when it adds the keeper to an album, with nothing deleted.
+        let outcome = MergeOutcome(keeperID: id, deletedIDs: [], albumIDsAdded: [albumID])
+        #expect(await source.undoMerge([outcome]), "undoMerge reported a failure")
+
+        let after = try #require(
+            await source.albums().first(where: { $0.id == albumID }), "The album \"\(title)\" is gone after the undo"
+        )
+        #expect(!after.assetIDs.contains(id), "The photo is still in \"\(title)\" after the undo")
+        #expect(await source.existing([id]) == [id], "The undo removed the photo itself")
+    }
+
     // MARK: Helpers
+
+    /// The name of the file each photo in the library came from, lowercased.
+    private static func originalFilenames() -> Set<String> {
+        let photos = PHAsset.fetchAssets(with: .image, options: nil)
+        var names = Set<String>()
+        for i in 0..<photos.count {
+            let resources = PHAssetResource.assetResources(for: photos.object(at: i))
+            // The original's resource, not an edit's.
+            guard let original = resources.first(where: { $0.type == .photo }) ?? resources.first else { continue }
+            names.insert(original.originalFilename.lowercased())
+        }
+        return names
+    }
+
+    /// Makes an album holding the photo `id` and returns the album's local identifier.
+    private static func addAlbum(titled title: String, holding id: String) async throws -> String {
+        let created = Locked<String?>(nil)
+        try await PHPhotoLibrary.shared().performChanges {
+            let request = PHAssetCollectionChangeRequest.creationRequestForAssetCollection(withTitle: title)
+            request.addAssets(PHAsset.fetchAssets(withLocalIdentifiers: [id], options: nil))
+            created.value = request.placeholderForCreatedAssetCollection.localIdentifier
+        }
+        return try #require(created.value, "PhotoKit made no placeholder for the new album")
+    }
 
     /// Whether `stream` yields within `seconds`.
     private static func first(of stream: AsyncStream<Void>, within seconds: Double) async -> Bool {

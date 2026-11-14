@@ -6,7 +6,8 @@
 #              re-saved copies, screenshots and long videos, then every flow driven like a
 #              person would: Similar Shots, Copies, Files and Holding, Contacts, History and
 #              Rules. Each main screen is screenshotted (light, plus a dark pass) into the
-#              "screenshots" artifact and checked with Xcode's accessibility audit.
+#              "screenshots" artifact and checked with Xcode's accessibility audit. Last,
+#              photo and contacts access is reset and turned down at the prompts.
 #
 # macOS minutes are the expensive kind (10x against a private repo's quota), so: no matrix,
 # nothing heavy cached, a newer push to the same branch or pull request cancels the run in
@@ -139,10 +140,10 @@ jobs:
     needs: package
     if: ${{ github.event_name != 'pull_request' || contains(github.event.pull_request.labels.*.name, 'simulator') }}
     runs-on: macos-26
-    # More than the step caps below add up to (89 minutes, plus a few for the quick steps),
+    # More than the step caps below add up to (97 minutes, plus a few for the quick steps),
     # so a stuck step times out by itself and the export, summary and uploads still run.
     # A normal run needs far less. Change the caps and this together.
-    timeout-minutes: 95
+    timeout-minutes: 105
     env:
       # TK_* reach the tests (scripts/ci/run-tests.sh passes them through).
       TK_A11Y_AUDIT: ${{ inputs.a11y_audit || 'strict' }}
@@ -237,9 +238,10 @@ jobs:
             TidykeepCoreTests TidykeepVisionTests TidykeepFilesTests TidykeepContactsTests \
             -- -test-timeouts-enabled YES -default-test-execution-time-allowance 300
 
-      # The UI tests run in two phases because XCTest runs classes in name order, and
+      # The UI tests run in phases because XCTest runs classes in name order, and
       # EndToEndUITests really removes photos. Screenshots and the audit go first, so they
-      # see the whole seeded library; each phase launches the app afresh per test.
+      # see the whole seeded library; PermissionUITests goes last, after the app tests. Each
+      # phase launches the app afresh per test.
       - name: UI tests (screenshots and accessibility audit)
         id: ui_shots
         if: ${{ !cancelled() && steps.install.outcome == 'success' }}
@@ -276,11 +278,28 @@ jobs:
           scripts/ci/run-tests.sh app TidykeepAppTests \
             -- -test-timeouts-enabled YES -default-test-execution-time-allowance 300
 
+      # Last, since it takes the access the phases above need away and leaves it turned down.
+      - name: UI tests (photos and contacts turned down)
+        id: ui_permissions
+        if: ${{ !cancelled() && steps.install.outcome == 'success' }}
+        timeout-minutes: 8
+        env:
+          # PermissionUITests skips without it.
+          TK_ACCESS_RESET: "1"
+        run: |
+          scripts/ci/grant-privacy.sh "$SIM_UDID" "$BUNDLE_ID" --reset photos contacts
+          scripts/ci/run-tests.sh ui-permissions TidykeepUITests/PermissionUITests \
+            -- -test-timeouts-enabled YES -default-test-execution-time-allowance 300
+
+      - name: Screenshot after a failure (photos and contacts turned down)
+        if: ${{ failure() && steps.ui_permissions.outcome == 'failure' }}
+        run: scripts/ci/screenshot.sh "$SIM_UDID" "$SHOTS" after-ui-permissions-failure
+
       - name: Export screenshots
         if: ${{ always() }}
         timeout-minutes: 2
         run: |
-          for phase in ui-shots ui-flows app package; do
+          for phase in ui-shots ui-flows app ui-permissions package; do
             scripts/ci/export-attachments.sh "$RESULTS/$phase.xcresult" "$SHOTS/$phase"
           done
           find "$SHOTS" -type d -empty -delete 2>/dev/null || true
@@ -295,7 +314,7 @@ jobs:
             echo "Xcode ${XCODE_VERSION:-?} (iOS SDK ${IOS_SDK:-?}) on ${SIM_NAME:-no simulator} (iOS ${SIM_OS:-?}). Seeded ${TK_SEED_PHOTOS:-0} photos and ${TK_SEED_VIDEOS:-0} videos. Accessibility audit: $TK_A11Y_AUDIT."
             echo
             scripts/ci/summarize-results.sh "$RESULTS/package.xcresult" "$RESULTS/ui-shots.xcresult" \
-              "$RESULTS/ui-flows.xcresult" "$RESULTS/app.xcresult"
+              "$RESULTS/ui-flows.xcresult" "$RESULTS/app.xcresult" "$RESULTS/ui-permissions.xcresult"
             echo
             if [ -d "$SHOTS/ui-shots" ]; then
               echo "**Screenshots** (ui-shots/): $(find "$SHOTS/ui-shots" -name '[0-9][0-9]-*.png' | sed 's|.*/||' | sort | tr '\n' ' ')"

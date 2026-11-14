@@ -15,7 +15,10 @@
 # Simulator only: refuses a udid that isn't a booted simulator on this Mac.
 # When GITHUB_ENV is set, exports TK_SEED_PHOTOS, TK_SEED_SCREENSHOTS, TK_SEED_VIDEOS,
 # TK_SEED_BURSTS, TK_SEED_COPY_SETS, TK_SEED_SOURCE, TK_SEED_FIRST and TK_SEED_LAST from
-# seed.json, so the tests know what to expect (run-tests.sh passes TK_* through).
+# seed.json, so the tests know what to expect (run-tests.sh passes TK_* through). Also
+# TK_SEED_NAMES (every seeded photo), TK_SEED_KEEPERS (each burst's sharp frame and each copy
+# set's original, which no flow may remove) and TK_SEED_EXTRAS (what the app may offer to
+# remove): file names, comma-separated (the seed's names have no commas).
 set -euo pipefail
 
 udid="${1:?usage: seed-simulator.sh <udid> <seed-folder>}"
@@ -55,6 +58,8 @@ if [ -f "$seed/seed.json" ]; then
         jq -r '
             "TK_SEED_PHOTOS=\(.photos)", "TK_SEED_SCREENSHOTS=\(.screenshots)", "TK_SEED_VIDEOS=\(.videos)",
             "TK_SEED_BURSTS=\(.bursts)", "TK_SEED_COPY_SETS=\(.copySets)", "TK_SEED_SOURCE=\(.source)",
-            "TK_SEED_FIRST=\(.first)", "TK_SEED_LAST=\(.last)"' "$seed/seed.json" >> "$GITHUB_ENV"
+            "TK_SEED_FIRST=\(.first)", "TK_SEED_LAST=\(.last)",
+            "TK_SEED_NAMES=\(.names // [] | join(","))", "TK_SEED_KEEPERS=\(.keepers // [] | join(","))",
+            "TK_SEED_EXTRAS=\(.extras // [] | join(","))"' "$seed/seed.json" >> "$GITHUB_ENV"
     fi
 fi

@@ -6,8 +6,9 @@ import XCTest
 // Every test launches with -TKResetState YES (a fresh install as far as the app's own data
 // goes) plus only the seeds it needs. The photo library is the simulator's, seeded by CI
 // with scripts/ci/seed-simulator.sh, and the app's photo and contacts access is granted
-// beforehand with `xcrun simctl privacy`. Labels are matched in English: the scheme runs
-// the tests with language en, region US, and the launch arguments below say the same.
+// beforehand with `xcrun simctl privacy`, except for PermissionUITests, which CI runs last
+// with that access reset so it can turn it down. Labels are matched in English: the scheme
+// runs the tests with language en, region US, and the launch arguments below say the same.
 
 /// The system prompts Tidykeep runs into, answered the way a person would.
 ///
@@ -22,6 +23,10 @@ enum SystemAlerts {
 
     /// The photo access prompt, if the pre-granted access didn't stick.
     static let photoAccess = ["Allow Full Access", "Allow Access to All Photos"]
+
+    /// Turning down the photo or contacts prompt. iOS writes it with a curly apostrophe;
+    /// the straight one is in case a runtime doesn't.
+    static let denyAccess = ["Don\u{2019}t Allow", "Don't Allow"]
 
     /// PhotoKit asks before moving photos to Recently Deleted.
     static let confirmDelete = ["Delete"]
@@ -102,8 +107,14 @@ final class AppDriver {
     /// `appearance` ("dark" or "light") forces the app's look through -TKAppearance, for
     /// when XCUIDevice can't switch the simulator's. `textSize` is a UIKit content size category
     /// name, such as "UICTContentSizeCategoryAccessibilityXXXL", for the app's text size.
+    ///
+    /// By default the photo prompt, if it shows, is allowed, and the Tidy tab counts once its
+    /// coverage line shows. A test that answers the prompt itself passes
+    /// `answeringPhotoPrompt: false` and a `marker` the tab shows without photo access, such
+    /// as "home.row.dupfiles"; the prompt may then still be up when this returns.
     func launch(
         seeds: Seeds = [], appearance: String? = nil, textSize: String? = nil,
+        answeringPhotoPrompt: Bool = true, marker: String = "coverage.line",
         file: StaticString = #filePath, line: UInt = #line
     ) {
         var arguments = [
@@ -125,7 +136,7 @@ final class AppDriver {
         // before the onboarding cover does. If onboarding never shows, the wait still ends
         // after a while so the failure below says why.
         let proceed = element("onboarding.continue")
-        let coverage = element("coverage.line")
+        let arrival = element(marker)
         let launched = Date()
         var sawOnboarding = false
         let arrived = until(60) {
@@ -134,8 +145,10 @@ final class AppDriver {
                 if proceed.isHittable && proceed.isEnabled { proceed.tap() }
                 return false
             }
-            SystemAlerts.tap(SystemAlerts.photoAccess, in: self.app, timeout: 0)
-            return coverage.exists && (sawOnboarding || Date().timeIntervalSince(launched) > 20)
+            if answeringPhotoPrompt {
+                SystemAlerts.tap(SystemAlerts.photoAccess, in: self.app, timeout: 0)
+            }
+            return arrival.exists && (sawOnboarding || Date().timeIntervalSince(launched) > 20)
         }
         // A fresh install always starts with onboarding. Without it, -TKResetState no longer
         // resets, and every test would run on whatever the last one left behind.

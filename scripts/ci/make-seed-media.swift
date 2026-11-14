@@ -24,7 +24,8 @@
 // <out-folder> gets the media, truth.json (which file is what) and seed.json, a summary CI
 // hands to the tests:
 //   {"photos", "screenshots", "videos", "bursts", "copySets", "first", "last", "source",
-//    "names": [every photo file], "extras": [the files the app may offer to remove]}
+//    "names": [every photo file], "extras": [the files the app may offer to remove],
+//    "keepers": [each burst's sharp frame and each copy set's original: never removed]}
 //
 // Uses only Apple frameworks, so it runs on a bare GitHub macOS runner with no packages.
 import AVFoundation
@@ -507,6 +508,7 @@ allDates += photoDates
 
 let photoNames = truth.bursts.flatMap(\.files) + truth.copySets.flatMap { [$0.original] + $0.copies } + truth.singles + truth.screenshots
 let extras = truth.bursts.flatMap { burst in burst.files.filter { $0 != burst.best } } + truth.copySets.flatMap(\.copies)
+let keepers = truth.bursts.map(\.best) + truth.copySets.map(\.original)
 let iso = ISO8601DateFormatter()
 let summary: [String: Any] = [
     "source": seedSource,
@@ -519,6 +521,7 @@ let summary: [String: Any] = [
     "last": iso.string(from: allDates.max()!),
     "names": photoNames.sorted(),
     "extras": extras.sorted(),
+    "keepers": keepers.sorted(),
 ]
 do {
     let encoder = JSONEncoder()
