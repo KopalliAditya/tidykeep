@@ -82,6 +82,11 @@ public final class InMemoryContactStore: ContactStoring {
         await book.update(card)
     }
 
+    /// Sets the card's photo, or takes it off with nil: a photo changed in another app.
+    public func setImageData(_ data: Data?, for id: String) async {
+        await book.setImage(data, for: id)
+    }
+
     private func checkAccess() throws {
         guard authorization().canRead else { throw ContactStoreError.notAuthorized }
     }
@@ -106,6 +111,11 @@ private actor Book {
         } else {
             cards.append(card)
         }
+    }
+
+    func setImage(_ data: Data?, for id: String) {
+        images[id] = data
+        if let i = cards.firstIndex(where: { $0.id == id }) { cards[i].hasImage = data != nil }
     }
 
     func add(_ card: ContactCard) -> String {
@@ -176,12 +186,14 @@ private actor Book {
 
         // Work everything out first, so a refusal changes nothing.
         var keeper: ContactCard?
+        var restoresPhoto = false
         var recreate: [(card: ContactCard, image: Data?, groupIDs: [String])] = []
         if let current = card(plan.keeperID) {
-            var reverted = try MergeUndo.revertedKeeper(
-                current: current, plan: plan, overwritingLaterEdits: overwritingLaterEdits)
-            if plan.photoFromID != nil { reverted.hasImage = savedKeeper?.imageData != nil }
-            keeper = reverted
+            let reverted = try MergeUndo.revertedKeeper(
+                current: current, photo: images[current.id], plan: plan, saved: saved,
+                overwritingLaterEdits: overwritingLaterEdits)
+            keeper = reverted.card
+            restoresPhoto = reverted.restoresPhoto
         } else if limitedAccess {
             // Most likely still there, just no longer shared with the app.
             throw ContactStoreError.keeperNotVisible
@@ -197,7 +209,7 @@ private actor Book {
 
         if let keeper {
             replace(keeper)
-            if plan.photoFromID != nil { images[keeper.id] = savedKeeper?.imageData }
+            if restoresPhoto { images[keeper.id] = savedKeeper?.imageData }
             for group in MergeUndo.groupsJoined(plan, saved: saved) { groups[group]?.remove(keeper.id) }
         }
         for entry in recreate {

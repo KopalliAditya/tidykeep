@@ -15,7 +15,8 @@ public struct MergeChoices: Sendable, Codable, Hashable {
 }
 
 /// A merge worked out in full before anything is saved: the preview shows it, the store
-/// applies it, and History keeps it so the merge can be undone.
+/// applies it, and it is saved next to the backup so the merge can be undone. It holds the
+/// cards' details, so History never keeps it (see `ContactBackupStore.savePlan`).
 public struct MergePlan: Sendable, Codable, Hashable {
     /// The card that stays. It keeps its identifier, its note and its links from other apps.
     public var keeperID: String
@@ -42,8 +43,8 @@ public struct MergePlan: Sendable, Codable, Hashable {
 }
 
 extension MergePlan {
-    /// Missing fields get their defaults, so a plan History saved in an older version still
-    /// loads for its undo.
+    /// Missing fields get their defaults, so a plan saved by an older version still loads
+    /// for its undo.
     public init(from decoder: Decoder) throws {
         let c = try decoder.container(keyedBy: CodingKeys.self)
         self.init(

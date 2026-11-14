@@ -37,6 +37,16 @@ import TidykeepVision
         await store.cards().filter(ContactsModel.isSample)
     }
 
+    var backups: ContactBackupStore {
+        ContactBackupStore(directory: data.appendingPathComponent("ContactBackups", isDirectory: true))
+    }
+
+    /// Every file in the backups folder, by name.
+    func backupFileNames() -> [String] {
+        let names = try? FileManager.default.contentsOfDirectory(atPath: backups.directory.path(percentEncoded: false))
+        return (names ?? []).sorted()
+    }
+
     // MARK: Access
 
     @Test func accessMapsLimitedToAllowedAndRestrictedToOff() async {
@@ -133,10 +143,13 @@ import TidykeepVision
         #expect(receipt.title == "Jordan Rivera")
         #expect(Copy.Receipts.sentence(receipt) == "Merged 2 cards into Jordan Rivera")
         let record = try JSONDecoder().decode(ContactMergeRecord.self, from: try #require(receipt.payload))
-        #expect(record.plan.keeperID == group.keeperID)
-        #expect(receipt.itemIDs == record.plan.removedIDs)
         let backup = data.appendingPathComponent("ContactBackups/\(record.backupID.uuidString).vcf")
         #expect(FileManager.default.fileExists(atPath: backup.path))
+        // The plan is saved next to the backup, not in the receipt.
+        let plan = try backups.loadPlan(id: record.backupID)
+        #expect(plan.keeperID == group.keeperID)
+        #expect(receipt.itemIDs == plan.removedIDs)
+        #expect(backupFileNames() == ["\(record.backupID.uuidString).plan.json", "\(record.backupID.uuidString).vcf"])
         #expect(model.backupCount == 1)
 
         let text = try #require(notices.text)
@@ -148,6 +161,62 @@ import TidykeepVision
         let left = await jordans(store)
         #expect(left.count == 1)
         #expect(left.first?.emails.map(\.value) == ["jordan@rivera.example"])
+    }
+
+    @Test func receiptsHoldTheNameAndCardIDsOnly() async throws {
+        let store = pair()
+        let (model, history, _) = model(store, directory: data)
+        await model.start()
+        let group = try #require(model.groups.first)
+        await model.merge(group.id, keeperID: "j1", choices: MergeChoices(nameFrom: "j1"))
+
+        let receipt = try #require(history.receipts.first)
+        let payload = try #require(receipt.payload)
+        let fields = try #require(try JSONSerialization.jsonObject(with: payload) as? [String: Any])
+        #expect(Set(fields.keys) == ["backupID", "groupID"])
+        #expect(fields["groupID"] as? String == "j1|j2")
+        #expect(receipt.title == "Jordan Rivera")
+        #expect(receipt.itemIDs == ["j2"])
+        // Nothing of the cards' details is in History's file, nor in the payloads it holds as
+        // base64, which a plain search of the file can't see into.
+        let file = try Data(contentsOf: data.appendingPathComponent("history.json"))
+        let saved = String(decoding: file, as: UTF8.self)
+        let payloads = try JSONDecoder().decode(ReceiptLog.self, from: file).receipts.compactMap(\.payload)
+        #expect(payloads == [payload])
+        for text in [saved] + payloads.map({ String(decoding: $0, as: UTF8.self) }) {
+            for detail in ["415 555 0134", "(415) 555-0134", "rivera.example", "Mobile", "givenName", "phones", "emails", "keeperBefore", "\"Jordan\""] {
+                #expect(!text.contains(detail), "history.json holds \(detail)")
+            }
+        }
+        #expect(saved.contains("Jordan Rivera"))
+    }
+
+    @Test func anOldReceiptWithThePlanInsideDoesntCrashUndo() async throws {
+        let store = pair()
+        let (model, history, notices) = model(store, directory: data)
+        await model.start()
+        let group = try #require(model.groups.first)
+        await model.merge(group.id, keeperID: "j1", choices: MergeChoices(nameFrom: "j1"))
+        let receipt = try #require(history.receipts.first)
+        let record = try JSONDecoder().decode(ContactMergeRecord.self, from: try #require(receipt.payload))
+
+        // As a build before the plan moved next to the backup left it: the plan in the
+        // receipt, and only the vCard in the folder.
+        struct OldRecord: Encodable {
+            var plan: MergePlan
+            var backupID: UUID
+            var groupID: String
+        }
+        let old = OldRecord(plan: try backups.loadPlan(id: record.backupID), backupID: record.backupID, groupID: record.groupID)
+        try FileManager.default.removeItem(at: backups.planURL(record.backupID))
+        history.update(receipt.id) { $0.payload = try? JSONEncoder().encode(old) }
+        let decoded = try JSONDecoder().decode(ContactMergeRecord.self, from: try #require(history.receipt(receipt.id)?.payload))
+        #expect(decoded.backupID == record.backupID)
+
+        await model.undo(try #require(history.receipt(receipt.id)))
+        #expect(notices.text == Copy.Contacts.backupGone)
+        #expect(history.receipt(receipt.id)?.status == .done)
+        #expect(await jordans(store).count == 1)
     }
 
     @Test func undoRestoresBothCards() async throws {
@@ -168,6 +237,67 @@ import TidykeepVision
 
         // A second undo of the same receipt does nothing.
         await model.undo(try #require(history.receipt(receipt.id)))
+        #expect(await jordans(store).count == 2)
+    }
+
+    @Test func undoAfterARelaunchReadsThePlanFromBesideTheBackup() async throws {
+        let store = pair()
+        let (model, history, _) = model(store, directory: data)
+        await model.start()
+        let group = try #require(model.groups.first)
+        await model.merge(group.id, keeperID: "j1", choices: MergeChoices(nameFrom: "j1"))
+        let id = try #require(history.receipts.first?.id)
+
+        let (later, laterHistory, notices) = self.model(store, directory: data)
+        await later.start()
+        #expect(later.backupCount == 1)
+        await later.undo(try #require(laterHistory.receipt(id)))
+        #expect(notices.text == "Undone. Jordan Rivera is back to 2 cards.")
+        #expect(laterHistory.receipt(id)?.status == .undone)
+        let back = await jordans(store)
+        #expect(back.count == 2)
+        #expect(back.contains { $0.id == "j1" && $0.emails.isEmpty })
+    }
+
+    @Test func undoWithoutItsPlanSaysSo() async throws {
+        let store = pair()
+        let (model, history, notices) = model(store, directory: data)
+        await model.start()
+        let group = try #require(model.groups.first)
+        await model.merge(group.id, keeperID: group.keeperID, choices: MergeChoices(nameFrom: group.keeperID))
+        let receipt = try #require(history.receipts.first)
+        let record = try JSONDecoder().decode(ContactMergeRecord.self, from: try #require(receipt.payload))
+        try FileManager.default.removeItem(at: backups.planURL(record.backupID))
+
+        await model.undo(receipt)
+        #expect(notices.text == Copy.Contacts.backupGone)
+        #expect(history.receipts.first?.status == .done)
+        #expect(await jordans(store).count == 1)
+    }
+
+    @Test func undoAsksBeforeReplacingAPhotoSetAfterTheMerge() async throws {
+        let photo = Data([0xFF, 0xD8, 0xFF, 0xE0] + Array(repeating: 0xB2, count: 300))
+        var withPhoto = Self.jordanWork
+        withPhoto.hasImage = true
+        let store = InMemoryContactStore(cards: [Self.jordan, withPhoto], images: ["j2": photo])
+        let (model, history, _) = model(store, directory: data)
+        await model.start()
+        let group = try #require(model.groups.first)
+        await model.merge(group.id, keeperID: "j1", choices: MergeChoices(nameFrom: "j1", photoFrom: "j2"))
+        #expect(await store.imageData(for: "j1") == photo)
+        let receipt = try #require(history.receipts.first)
+
+        let later = Data([0xFF, 0xD8, 0xFF, 0xE0] + Array(repeating: 0xC3, count: 300))
+        await store.setImageData(later, for: "j1")
+        await model.undo(receipt)
+        let conflict = try #require(model.pendingUndoConflict)
+        #expect(conflict.text == Copy.Contacts.keeperEdited("Jordan Rivera"))
+        #expect(await store.imageData(for: "j1") == later)
+        #expect(await jordans(store).count == 1)
+
+        await model.confirmUndo(conflict)
+        #expect(history.receipt(receipt.id)?.status == .undone)
+        #expect(await store.imageData(for: "j1") == nil)
         #expect(await jordans(store).count == 2)
     }
 
@@ -234,19 +364,64 @@ import TidykeepVision
         await model.merge(group.id, keeperID: group.keeperID, choices: MergeChoices(nameFrom: group.keeperID))
         #expect(model.backupCount == 1)
 
-        // A backup left by a merge cut off before it was recorded.
-        let backups = ContactBackupStore(directory: data.appendingPathComponent("ContactBackups", isDirectory: true))
-        _ = try backups.save(Data("BEGIN:VCARD\nEND:VCARD\n".utf8), id: UUID())
+        let kept = backupFileNames()
+        #expect(kept.count == 2)
+
+        // A backup and its plan left by a merge cut off before it was recorded, and a plan
+        // left on its own.
+        let plan = try backups.loadPlan(id: try #require(backups.savedIDs().first))
+        let cutOff = UUID()
+        _ = try backups.save(Data("BEGIN:VCARD\nEND:VCARD\n".utf8), id: cutOff)
+        try backups.savePlan(plan, id: cutOff)
+        try backups.savePlan(plan, id: UUID())
         let (later, _, _) = self.model(store, directory: data)
         #expect(later.backupCount == 2)
         await later.start()
         #expect(later.backupCount == 1)
+        #expect(backupFileNames() == kept)
 
         // Clearing History leaves nothing to undo with, so its backups go too.
         history.clear()
         let (cleared, _, _) = self.model(store, directory: data)
         await cleared.start()
         #expect(cleared.backupCount == 0)
+        #expect(backupFileNames().isEmpty)
+    }
+
+    @Test func deleteBackupsTakesThePlansToo() async throws {
+        let store = InMemoryContactStore(cards: [Self.jordan, Self.jordanWork, Self.dana, ContactCard(
+            id: "d2", containerID: "icloud", containerName: "iCloud", givenName: "Dana", familyName: "Ray")])
+        let (model, _, _) = model(store, directory: data)
+        await model.start()
+        #expect(model.groups.count == 2)
+        for group in model.groups {
+            await model.merge(group.id, keeperID: group.keeperID, choices: MergeChoices(nameFrom: group.keeperID))
+        }
+        #expect(model.backupCount == 2)
+        #expect(backupFileNames().count == 4)
+
+        model.deleteBackups()
+        #expect(model.backupCount == 0)
+        #expect(backupFileNames().isEmpty)
+    }
+
+    @Test func aReceiptThatCantBeSavedStopsTheMergeBeforeAnythingChanges() async throws {
+        // A folder where History's file should be, so saving it fails.
+        let blocked = data.appendingPathComponent("history.json", isDirectory: true)
+        try FileManager.default.createDirectory(at: blocked, withIntermediateDirectories: true)
+        try Data("x".utf8).write(to: blocked.appendingPathComponent("inside"))
+        let store = pair()
+        let (model, history, _) = model(store, directory: data)
+        await model.start()
+        let group = try #require(model.groups.first)
+
+        let merged = await model.merge(group.id, keeperID: group.keeperID, choices: MergeChoices(nameFrom: group.keeperID))
+        #expect(!merged)
+        #expect(model.problems[group.id] == .backupFailed)
+        #expect(history.receipts.isEmpty)
+        #expect(model.backupCount == 0)
+        #expect(backupFileNames().isEmpty)
+        #expect(await jordans(store).count == 2)
     }
 
     @Test func aChangedCardStopsTheMergeAndChangesNothing() async throws {
@@ -279,6 +454,7 @@ import TidykeepVision
         await model.merge(group.id, keeperID: group.keeperID, choices: MergeChoices(nameFrom: group.keeperID))
         model.deleteBackups()
         #expect(model.backupCount == 0)
+        #expect(backupFileNames().isEmpty)
 
         await model.undo(try #require(history.receipts.first))
         #expect(notices.text == Copy.Contacts.backupGone)

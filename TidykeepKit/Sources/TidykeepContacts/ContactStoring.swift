@@ -26,7 +26,8 @@ public enum ContactStoreError: Error, Sendable, Hashable {
     case crossAccount(id: String)
     /// The plan would delete My Card. My Card is only ever the keeper.
     case myCardNotKeeper(id: String)
-    /// The merged card was edited since the merge in fields the undo would change. Ask, then
+    /// The merged card was edited since the merge in fields the undo would change, named as
+    /// in `ManagedField`, or "photo" for a photo the merge took from another card. Ask, then
     /// undo with `overwritingLaterEdits` to put the old values back anyway.
     case keeperChangedSinceMerge(fields: [String])
     /// The merged card was deleted since. Undo with `overwritingLaterEdits` re-creates it from
@@ -71,7 +72,8 @@ public protocol ContactStoring: Sendable {
     /// cards from the backup in the keeper's account, in their groups, in one save. The keeper
     /// leaves the groups the merge added it to. Fields edited since the merge are kept unless
     /// the undo would have to change them too; then it throws `keeperChangedSinceMerge` unless
-    /// `overwritingLaterEdits` is set. A keeper that can't be found throws `keeperMissing`, or
+    /// `overwritingLaterEdits` is set. The same goes for a photo changed since a merge that took
+    /// another card's photo. A keeper that can't be found throws `keeperMissing`, or
     /// `keeperNotVisible` with limited access.
     ///
     /// Returns the identifiers of the re-created cards (a re-created keeper first): new cards,

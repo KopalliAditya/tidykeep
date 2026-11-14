@@ -109,6 +109,53 @@ import TidykeepContacts
         #expect(await store.cards().count == 4)
     }
 
+    @Test func undoAsksBeforeReplacingAPhotoSetAfterTheMerge() async throws {
+        let store = store()
+        let plan = try plan(photoFrom: "s")
+        let backup = try await store.backup(ids: plan.backupIDs)
+        try await store.apply(plan)
+        #expect(await store.imageData(for: "k") == jpegB)
+        let jpegC = Data([0xFF, 0xD8, 0xFF, 0xE0] + Array(repeating: 0xC3, count: 300))
+        await store.setImageData(jpegC, for: "k")
+
+        await #expect(throws: ContactStoreError.keeperChangedSinceMerge(fields: ["photo"])) {
+            try await store.undo(plan, backup: backup)
+        }
+        // Nothing changed: the new photo stays and the removed cards are still gone.
+        #expect(await store.imageData(for: "k") == jpegC)
+        #expect(await store.cards().count == 2)
+
+        _ = try await store.undo(plan, backup: backup, overwritingLaterEdits: true)
+        #expect(await store.imageData(for: "k") == jpegA)
+        #expect(await store.cards().first { $0.id == "k" } == keeper)
+    }
+
+    @Test func undoAsksBeforePuttingBackAPhotoTakenOffAfterTheMerge() async throws {
+        let store = store()
+        let plan = try plan(photoFrom: "s")
+        let backup = try await store.backup(ids: plan.backupIDs)
+        try await store.apply(plan)
+        await store.setImageData(nil, for: "k")
+
+        await #expect(throws: ContactStoreError.keeperChangedSinceMerge(fields: ["photo"])) {
+            try await store.undo(plan, backup: backup)
+        }
+        #expect(await store.imageData(for: "k") == nil)
+    }
+
+    @Test func undoLeavesAPhotoAloneWhenTheMergeKeptTheKeepers() async throws {
+        let store = store()
+        let plan = try plan(photoFrom: "k")
+        #expect(plan.photoFromID == nil)
+        let backup = try await store.backup(ids: plan.backupIDs)
+        try await store.apply(plan)
+        let jpegC = Data([0xFF, 0xD8, 0xFF, 0xE0] + Array(repeating: 0xC3, count: 300))
+        await store.setImageData(jpegC, for: "k")
+
+        _ = try await store.undo(plan, backup: backup)
+        #expect(await store.imageData(for: "k") == jpegC)
+    }
+
     @Test func undoRecreatesADeletedKeeperOnlyWhenAsked() async throws {
         let store = InMemoryContactStore(cards: [keeper, second], images: ["k": jpegA, "s": jpegB])
         let plan = try MergePlanner.plan(cards: [keeper, second], keeperID: "k", choices: MergeChoices(nameFrom: "k"))

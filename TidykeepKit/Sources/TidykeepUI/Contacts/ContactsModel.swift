@@ -74,7 +74,8 @@ public final class ContactsModel {
     private let store: any ContactStoring
     private let backups: ContactBackupStore?
     private let keptApartFile: JSONFile<[String]>?
-    private var memoryBackups: [UUID: Data] = [:]
+    /// Backups and their plans when there is no folder to save them in.
+    private var memoryBackups: [UUID: (vCard: Data, plan: MergePlan)] = [:]
     private var cards: [String: ContactCard] = [:]
     private var mergeable: [ContactDuplicateGroup] = []
     private var scanTask: Task<Void, Never>?
@@ -268,9 +269,9 @@ public final class ContactsModel {
 
     // MARK: Merging
 
-    /// Merges the group: plans it, backs the cards up as a vCard on this iPhone, records it in
-    /// History, then saves. A refusal or failure changes nothing and is shown on the merge
-    /// screen. Returns whether the cards were merged.
+    /// Merges the group: plans it, backs the cards up as a vCard on this iPhone with the plan
+    /// next to it, records it in History, then saves. A refusal or failure changes nothing and
+    /// is shown on the merge screen. Returns whether the cards were merged.
     @discardableResult
     func merge(_ groupID: String, keeperID: String, choices: MergeChoices) async -> Bool {
         guard mergingGroupID == nil, let group = mergeable.first(where: { $0.id == groupID }) else { return false }
@@ -290,17 +291,24 @@ public final class ContactsModel {
         let backupID = UUID()
         do {
             let data = try await store.backup(ids: plan.backupIDs)
-            try saveBackup(data, id: backupID)
+            try saveBackup(data, plan: plan, id: backupID)
         } catch {
             return failed(groupID, problem(for: error, whileBackingUp: true))
         }
 
         let count = plan.backupIDs.count
         let title = Copy.Contacts.name(plan.merged)
-        let record = ContactMergeRecord(plan: plan, backupID: backupID, groupID: groupID)
-        let receipt = history.begin(
-            .contactsMerged, requested: count, itemIDs: plan.removedIDs, title: title,
-            payload: try? JSONEncoder().encode(record))
+        let receipt: UUID
+        do {
+            // A receipt that never reached the disk would be gone after a relaunch, and its
+            // backup deleted as unused, so the merge couldn't be undone. It doesn't start.
+            receipt = try history.beginSaved(
+                .contactsMerged, requested: count, itemIDs: plan.removedIDs, title: title,
+                payload: try JSONEncoder().encode(ContactMergeRecord(backupID: backupID, groupID: groupID)))
+        } catch {
+            deleteBackup(backupID)
+            return failed(groupID, .backupFailed)
+        }
         do {
             try await store.apply(plan)
         } catch {
@@ -399,7 +407,7 @@ public final class ContactsModel {
             return
         }
         do {
-            let restored = try await store.undo(record.plan, backup: backup, overwritingLaterEdits: overwritingLaterEdits)
+            let restored = try await store.undo(backup.plan, backup: backup.vCard, overwritingLaterEdits: overwritingLaterEdits)
             history.update(receipt.id) { r in
                 r.payload = try? JSONEncoder().encode(record.undone(restoredIDs: restored))
             }
@@ -473,63 +481,65 @@ public final class ContactsModel {
 
     // MARK: Backups
 
-    private func saveBackup(_ data: Data, id: UUID) throws {
+    /// Saves the vCard backup and the merge's plan next to it, or neither.
+    private func saveBackup(_ data: Data, plan: MergePlan, id: UUID) throws {
         if let backups {
-            try backups.save(data, id: id)
+            do {
+                try backups.save(data, id: id)
+                try backups.savePlan(plan, id: id)
+            } catch {
+                try? backups.delete(id: id)
+                throw error
+            }
         } else {
-            memoryBackups[id] = data
+            memoryBackups[id] = (data, plan)
         }
         backupCount = countBackups()
     }
 
-    private func loadBackup(_ id: UUID) -> Data? {
-        if let backups { return try? backups.load(id: id) }
-        return memoryBackups[id]
+    /// The backup and its plan. Nil when either is gone: undo needs both.
+    private func loadBackup(_ id: UUID) -> (vCard: Data, plan: MergePlan)? {
+        guard let backups else { return memoryBackups[id] }
+        guard let vCard = try? backups.load(id: id), let plan = try? backups.loadPlan(id: id) else { return nil }
+        return (vCard, plan)
     }
 
+    /// Deletes the backup and its plan.
     private func deleteBackup(_ id: UUID) {
         try? backups?.delete(id: id)
         memoryBackups[id] = nil
         backupCount = countBackups()
     }
 
-    /// Deletes every saved backup. Merges made before can't be undone after this; the cards
-    /// themselves aren't touched.
+    /// Deletes every saved backup and the plans saved with them. Merges made before can't be
+    /// undone after this; the cards themselves aren't touched.
     func deleteBackups() {
-        for url in backupFiles() { try? FileManager.default.removeItem(at: url) }
+        for id in backups?.savedIDs() ?? [] { try? backups?.delete(id: id) }
         memoryBackups = [:]
         backupCount = countBackups()
         notices.show(Copy.Contacts.backupsDeleted, systemImage: "trash")
     }
 
-    private func backupFiles() -> [URL] {
-        guard let backups else { return [] }
-        let items = (try? FileManager.default.contentsOfDirectory(at: backups.directory, includingPropertiesForKeys: nil)) ?? []
-        return items.filter { $0.pathExtension == "vcf" }
-    }
-
-    /// Deletes backups no receipt points to: left by a merge cut off before it was recorded
-    /// or saved, or by receipts cleared from History. Without a receipt they can't be used
-    /// to undo anything.
+    /// Deletes backups no receipt points to, with their plans: left by a merge cut off before
+    /// it was recorded or saved, or by receipts cleared from History. Without a receipt they
+    /// can't be used to undo anything.
     func deleteOrphanBackups() {
-        let files = backupFiles()
-        guard !files.isEmpty else { return }
+        guard let backups else { return }
+        let saved = backups.savedIDs()
+        guard !saved.isEmpty else { return }
         let decoder = JSONDecoder()
-        let used = Set(history.receipts.compactMap { receipt -> String? in
+        let used = Set(history.receipts.compactMap { receipt -> UUID? in
             guard receipt.kind == .contactsMerged, let data = receipt.payload,
                   let record = try? decoder.decode(ContactMergeRecord.self, from: data) else { return nil }
-            return record.backupID.uuidString
+            return record.backupID
         })
-        var deleted = false
-        for url in files where !used.contains(url.deletingPathExtension().lastPathComponent) {
-            try? FileManager.default.removeItem(at: url)
-            deleted = true
-        }
-        if deleted { backupCount = countBackups() }
+        let orphans = saved.subtracting(used)
+        for id in orphans { try? backups.delete(id: id) }
+        if !orphans.isEmpty { backupCount = countBackups() }
     }
 
     private func countBackups() -> Int {
-        backups == nil ? memoryBackups.count : backupFiles().count
+        backups?.count() ?? memoryBackups.count
     }
 
     // MARK: Sample cards
@@ -576,15 +586,18 @@ public final class ContactsModel {
     }
 }
 
-/// What a merge's receipt keeps, so it can be undone after a relaunch: the plan, where its
-/// backup is, and how an undo went.
+/// What a merge's receipt keeps, so it can be undone after a relaunch: where its backup is,
+/// and how an undo went. With the receipt's title and item IDs, that is the contact's name
+/// and card IDs only. The plan, which holds the cards' details, is saved with the backup and
+/// deleted with it (`ContactBackupStore.savePlan`).
 struct ContactMergeRecord: Codable, Sendable, Hashable {
     enum UndoProblem: String, Codable, Sendable {
         case keeperEdited, keeperDeleted, keeperNotShared, alreadyBack, backupGone
     }
 
-    var plan: MergePlan
+    /// The backup and the plan saved with it.
     var backupID: UUID
+    /// The group merged, by its card IDs (`ContactDuplicateGroup.id`).
     var groupID: String
     /// The cards an undo re-created.
     var restoredIDs: [String]?
