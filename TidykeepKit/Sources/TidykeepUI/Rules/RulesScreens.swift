@@ -41,16 +41,19 @@ struct RulesView: View {
             } label: {
                 Label(Copy.Rules.favorites, systemImage: "heart")
             }
+            .accessibilityIdentifier("rules.keep.favorites")
             LabeledContent {
                 Text(Copy.Rules.always).foregroundStyle(Palette.secondaryText)
             } label: {
                 Label(Copy.Rules.edited, systemImage: "slider.horizontal.3")
             }
+            .accessibilityIdentifier("rules.keep.edited")
             LabeledContent {
                 Text(Copy.Rules.neverChecked).foregroundStyle(Palette.secondaryText)
             } label: {
                 Label(Copy.Rules.hidden, systemImage: "eye.slash")
             }
+            .accessibilityIdentifier("rules.keep.hidden")
             NavigationLink(value: Route.albums) {
                 LabeledContent {
                     Text(Copy.Rules.albumsChosen(chosenAlbumCount)).foregroundStyle(Palette.secondaryText)
@@ -58,6 +61,7 @@ struct RulesView: View {
                     Label(Copy.Rules.albums, systemImage: "rectangle.stack")
                 }
             }
+            .accessibilityIdentifier("rules.keep.albums")
             SwitchRow(
                 title: Copy.Rules.screenshotsInAlbums, systemImage: "camera.viewfinder",
                 identifier: "rules.switch.screenshots", isOn: keepScreenshotsInAlbums

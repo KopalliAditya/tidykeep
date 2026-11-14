@@ -139,10 +139,10 @@ jobs:
     needs: package
     if: ${{ github.event_name != 'pull_request' || contains(github.event.pull_request.labels.*.name, 'simulator') }}
     runs-on: macos-26
-    # More than the step caps below add up to (84 minutes, plus a few for the quick steps),
+    # More than the step caps below add up to (89 minutes, plus a few for the quick steps),
     # so a stuck step times out by itself and the export, summary and uploads still run.
     # A normal run needs far less. Change the caps and this together.
-    timeout-minutes: 90
+    timeout-minutes: 95
     env:
       # TK_* reach the tests (scripts/ci/run-tests.sh passes them through).
       TK_A11Y_AUDIT: ${{ inputs.a11y_audit || 'strict' }}
@@ -243,7 +243,7 @@ jobs:
       - name: UI tests (screenshots and accessibility audit)
         id: ui_shots
         if: ${{ !cancelled() && steps.install.outcome == 'success' }}
-        timeout-minutes: 15
+        timeout-minutes: 20
         run: |
           # A photo check can take up to three minutes on this runner, so each test gets ten.
           scripts/ci/run-tests.sh ui-shots \

@@ -74,7 +74,13 @@ final class AccessibilityAuditTests: XCTestCase {
 
         tidy.selectTab("tab.rules", label: "Rules")
         attach(text: tidy.app.debugDescription, named: "tree-rules")
-        try audit("rules", tidy)
+        // The rows on screen are measured here as they are at the larger sizes, so the audit's
+        // guesses about larger text in them give way to what those tests measure.
+        let measured = Self.rulesRows.map { Self.row($0, in: tidy.app) }.filter(\.exists)
+        for row in measured {
+            appIssues += Self.cutShort(in: row, at: .large).map { "rules: words cut short: \($0)" }
+        }
+        try audit("rules", tidy, measured: measured.map(\.frame))
 
         tidy.open("rules.choice.sensitivity")
         XCTAssertTrue(tidy.element("rules.option.0").waitForExistence(timeout: 10), "No choices for How alike")
@@ -82,52 +88,104 @@ final class AccessibilityAuditTests: XCTestCase {
         failOnAppIssues()
     }
 
-    /// The Rules rows with the longest words, at the largest text size: the switches, which go
-    /// under their words there, and the rules with choices, whose choice wraps under the name. In strict
-    /// mode, fails if a switch row isn't more than twice its default height, or the clipped text
-    /// audit finds anything in a row. That audit sees only what VoiceOver
-    /// sees, one switch per switch row, so a screenshot of each row shows its words; the element
-    /// tree and the full audit are attached too.
+    /// The Rules rows at the largest text size, where each row puts its value or switch under
+    /// its name. Each row's words are measured (`cutShort`), and the clipped text audit, which
+    /// has no larger size left to guess about here, checks each row too. In strict mode, fails if
+    /// either finds anything in a row, or a switch row isn't more than twice its default height.
+    /// That audit sees only what VoiceOver sees, one switch per switch row, so a screenshot of
+    /// each row shows its words; the element tree and the full audit are attached too.
     @MainActor
     func testRulesAtLargestText() throws {
+        try checkRulesRows(at: .accessibilityExtraExtraExtraLarge, named: "ax5")
+    }
+
+    /// The same rows at the largest size before the accessibility sizes: the tightest fit for
+    /// a name and its value side by side. In strict mode, fails if any row's words are cut short.
+    @MainActor
+    func testRulesAtLargerText() throws {
+        try checkRulesRows(at: .extraExtraExtraLarge, named: "xxxl")
+    }
+
+    /// The Always keep rows, the switches and the rules with choices: the Rules rows with the
+    /// longest words.
+    private static let rulesSwitches = ["rules.switch.screenshots", "rules.switch.recentFiles"]
+    private static let rulesRows = ["favorites", "edited", "hidden", "albums"].map { "rules.keep.\($0)" }
+        + rulesSwitches
+        + ["scope", "sensitivity", "videoMinimum", "largeFileMinimum"].map { "rules.choice.\($0)" }
+
+    /// Shows each of `rulesRows` at this text size, with a screenshot and a note per row.
+    @MainActor
+    private func checkRulesRows(at size: UIContentSizeCategory, named name: String) throws {
         let tidy = AppDriver(self)
-        tidy.launch(textSize: "UICTContentSizeCategoryAccessibilityXXXL")
+        tidy.launch(textSize: size.rawValue)
         tidy.selectTab("tab.rules", label: "Rules")
         // A failed check shouldn't stop the rest: the screenshots and the tree say why.
         continueAfterFailure = true
-        let switches = ["rules.switch.screenshots", "rules.switch.recentFiles"]
-        let choices = ["scope", "sensitivity", "videoMinimum", "largeFileMinimum"].map { "rules.choice.\($0)" }
-        for (index, identifier) in (switches + choices).enumerated() {
-            let row = tidy.element(identifier)
-            guard tidy.reveal(row) else {
+        let largest = size == .accessibilityExtraExtraExtraLarge
+        for (index, identifier) in Self.rulesRows.enumerated() {
+            guard tidy.reveal(tidy.element(identifier)) else {
                 XCTFail("\(identifier) never came on screen")
                 continue
             }
-            tidy.screenshot("rules-ax5-\(index + 1)")
+            tidy.screenshot("rules-\(name)-\(index + 1)")
+            let row = Self.row(identifier, in: tidy.app)
             let frame = row.frame
+            let cut = Self.cutShort(in: row, at: size)
             var clipped: [String] = []
-            do {
-                try tidy.app.performAccessibilityAudit(for: .textClipped) { issue in
-                    if let element = issue.element, element.exists, element.frame.intersects(frame) {
-                        clipped.append(Self.describe(issue))
+            if largest {
+                do {
+                    try tidy.app.performAccessibilityAudit(for: .textClipped) { issue in
+                        if let element = issue.element, element.exists, element.frame.intersects(frame) {
+                            clipped.append(Self.describe(issue))
+                        }
+                        return true
                     }
-                    return true
+                } catch {
+                    XCTFail("The clipped text audit didn't run on \(identifier): \(error)")
                 }
-            } catch {
-                XCTFail("The clipped text audit didn't run on \(identifier): \(error)")
             }
-            attach(text: "\(identifier): \(Int(frame.height)) points tall\n" + clipped.joined(separator: "\n"), named: "ax5-row-\(index + 1)")
+            attach(
+                text: "\(identifier): \(Int(frame.height)) points tall\n" + (cut + clipped).joined(separator: "\n"),
+                named: "\(name)-row-\(index + 1)"
+            )
             guard strict else { continue }
-            if switches.contains(identifier) {
+            if largest && Self.rulesSwitches.contains(identifier) {
                 XCTAssertGreaterThan(
                     frame.height, 2 * Self.defaultSwitchRowHeight,
                     "\(identifier) is \(Int(frame.height)) points tall at the largest text size: its words didn't grow"
                 )
             }
+            XCTAssertEqual(cut, [], "Words cut short in \(identifier) at text size \(name)")
             XCTAssertEqual(clipped, [], "Clipped text in \(identifier) at the largest text size")
         }
-        attach(text: tidy.app.debugDescription, named: "tree-rules-ax5")
-        try audit("rules-ax5", tidy)
+        attach(text: tidy.app.debugDescription, named: "tree-rules-\(name)")
+        if largest {
+            try audit("rules-\(name)", tidy)
+        }
+    }
+
+    /// The list row holding the element with this identifier, so a row's value counts as well
+    /// as its name; the element itself if it isn't in a row.
+    @MainActor
+    private static func row(_ identifier: String, in app: XCUIApplication) -> XCUIElement {
+        let cell = app.cells.containing(NSPredicate(format: "identifier == %@", identifier)).firstMatch
+        return cell.exists ? cell : app.descendants(matching: .any).matching(identifier: identifier).firstMatch
+    }
+
+    /// Words in the row that are cut short: text one line tall but narrower than its words take
+    /// on one line at this text size, in the body style the rows use. The clipped text audit
+    /// guesses from the element tree; this measures what's on screen.
+    @MainActor
+    private static func cutShort(in row: XCUIElement, at size: UIContentSizeCategory) -> [String] {
+        let font = UIFont.preferredFont(forTextStyle: .body, compatibleWith: UITraitCollection(preferredContentSizeCategory: size))
+        return row.staticTexts.allElementsBoundByIndex.compactMap { text -> String? in
+            guard text.exists, !text.label.isEmpty else { return nil }
+            let frame = text.frame
+            let oneLine = (text.label as NSString).size(withAttributes: [.font: font])
+            // A point or two either way is rounding.
+            guard frame.height < oneLine.height * 1.5, frame.width + 2 < oneLine.width else { return nil }
+            return "\"\(text.label)\" is \(Int(frame.width)) points wide and needs \(Int(oneLine.width.rounded(.up))) on one line"
+        }
     }
 
     /// A Rules switch row's height at the default text size, from the CI element tree.
@@ -142,8 +200,13 @@ final class AccessibilityAuditTests: XCTestCase {
     /// Audits what's on screen now and lists every issue in "a11y-<screen>". The issues the
     /// app owns are kept for `failOnAppIssues()`, so one screen's issues don't stop the
     /// audit of the next.
+    ///
+    /// `measured` are the frames of rows whose words are measured at this size and at the larger
+    /// ones (`cutShort`, `testRulesAtLargerText`, `testRulesAtLargestText`). The clipped text
+    /// audit's issue reads "may be clipped at larger Dynamic Type sizes": a guess about sizes
+    /// those tests check directly, so in those rows it's noted rather than counted.
     @MainActor
-    private func audit(_ screen: String, _ tidy: AppDriver) throws {
+    private func audit(_ screen: String, _ tidy: AppDriver, measured: [CGRect] = []) throws {
         // Let animations settle: a half-faded element reads as low contrast.
         RunLoop.current.run(until: Date().addingTimeInterval(1.0))
         let chrome = systemChrome(in: tidy.app)
@@ -157,6 +220,9 @@ final class AccessibilityAuditTests: XCTestCase {
             let what = Self.describe(issue)
             if let reason = Self.systemOwned(issue, chrome: chrome, barTop: barTop) {
                 ignored.append("\(what) [ignored: \(reason)]")
+            } else if issue.auditType == .textClipped, let element = issue.element, element.exists,
+                      measured.contains(where: { $0.contains(CGPoint(x: element.frame.midX, y: element.frame.midY)) }) {
+                ignored.append("\(what) [ignored: a guess about larger text, in a row measured at the larger sizes]")
             } else if let ratio = Self.measuredBarButtonContrast(issue), ratio >= 4.5 {
                 ignored.append("\(what) [ignored: measured \(String(format: "%.1f", ratio)):1 inside the button]")
             } else {
