@@ -44,8 +44,13 @@ import Testing
         let image = Self.pattern(width: 300, height: 200)
         let full = BicubicResampler.resize(image, width: 120, height: 80, window: (0, 0, 120, 80))
         let part = BicubicResampler.resize(image, width: 120, height: 80, window: (30, 10, 50, 60))
-        let cut = (10..<70).flatMap { y in full.pixels[(y * 120 + 30) * 3..<(y * 120 + 80) * 3] }
-        #expect(part.width == 50 && part.height == 60 && part.pixels == cut)
+        var cut: [UInt8] = []
+        for y in 10..<70 {
+            let start: Int = (y * 120 + 30) * 3
+            cut += full.pixels[start..<start + 50 * 3]
+        }
+        #expect(part.width == 50 && part.height == 60)
+        #expect(part.pixels == cut)
     }
 
     @Test func onlyTheBytesAskedForAreResized() {

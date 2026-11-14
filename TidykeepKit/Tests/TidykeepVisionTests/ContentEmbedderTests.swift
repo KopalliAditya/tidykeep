@@ -155,7 +155,12 @@ import UniformTypeIdentifiers
         let rowBytes = CVPixelBufferGetBytesPerRow(buffer)
         var got: [UInt8] = []
         for y in 0..<224 { for x in 0..<224 { got += [base[y * rowBytes + x * 4 + 2], base[y * rowBytes + x * 4 + 1], base[y * rowBytes + x * 4]] } }
-        #expect(got == (0..<(224 * 224)).flatMap { expected.pixels[($0 * 4)..<($0 * 4 + 3)] })
+        var want: [UInt8] = []
+        for i in 0..<(224 * 224) {
+            let start: Int = i * 4
+            want += expected.pixels[start..<start + 3]
+        }
+        #expect(got == want)
     }
 
     /// Drawing at the image's own size changes no pixel of an sRGB image.
@@ -163,7 +168,9 @@ import UniformTypeIdentifiers
         let image = Self.bands(width: 40, height: 30)
         let rgb = try ContentFraming.rgb(image)
         let data = try #require(image.dataProvider?.data) as Data
-        let colors = { (bytes: [UInt8]) in (0..<(40 * 30)).flatMap { i in bytes[(i * 4)..<(i * 4 + 3)] } }
+        let colors = { (bytes: [UInt8]) -> [UInt8] in
+            (0..<(40 * 30)).flatMap { (i: Int) -> ArraySlice<UInt8> in bytes[(i * 4)..<(i * 4 + 3)] }
+        }
         #expect(rgb.width == 40 && rgb.height == 30 && rgb.channels == 4)
         #expect(colors(rgb.pixels) == colors([UInt8](data)))
     }
