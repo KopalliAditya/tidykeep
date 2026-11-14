@@ -76,7 +76,7 @@ A RECEIPT FOR EVERY CHANGE
 History keeps a receipt for every change and shows the way back where there is one: Recently Deleted for photos (30 days), Put back for files in Holding, and Undo for contacts. Permanent deletes say so before you confirm.
 
 YOUR RULES
-Favorites, edited photos and hidden photos are always kept. You can also protect albums and recently changed files.
+Favorites, edited photos and hidden photos are always kept. You can also protect albums, recently changed files and your own contact card.
 
 PRIVATE BY DESIGN
 No account, no ads, no analytics, no tracking, and no network access at all. Tidykeep works in Airplane Mode. Your photos, files and contacts never leave your iPhone.
@@ -151,9 +151,8 @@ In App Privacy, answer **"No, we do not collect data from this app"**. That give
   the app's own container on the iPhone, and deleting the app deletes them.
 - `App/PrivacyInfo.xcprivacy` says the same: `NSPrivacyTracking` false, no tracking domains, no
   collected data types. Its required-reason entries are for local use only: UserDefaults
-  (CA92.1, the app's own preferences), file timestamps (C617.1 for its own container, 3B52.1
-  for folders the user picked, DDA9.1 for dates shown to the user) and disk space (85F4.1:
-  `getattrlist` reads how much space a file really takes, which the app shows).
+  (CA92.1, the app's own preferences) and file timestamps (C617.1 for its own container, 3B52.1
+  for folders the user picked, DDA9.1 for dates shown to the user).
 
 Privacy Policy URL: required, see the owner checklist. The policy text is `docs/PRIVACY.md`;
 the app ships the same text as `TidykeepKit/Sources/TidykeepUI/Resources/PrivacyPolicy.txt`.
@@ -203,7 +202,7 @@ To see each feature on a fresh device:
 
 2. Removing photos. Open Similar Shots, open a group and tap the Remove button at the bottom. The sheet "Remove N photos?" shows what goes, what stays and how to undo. Confirming shows the system's own delete confirmation, and removed photos go to Recently Deleted.
 
-3. Files. Files changed in the last 7 days are kept out of Duplicate Files and Large Files by default, because they are probably still in use, so first open the Rules tab and turn off "Files changed in the last 7 days" under Always Keep. In the Files app, make a folder in On My iPhone, put any file in it, then touch and hold the file and choose Duplicate. In Tidykeep, open Duplicate Files, choose that folder, and move the extra copy to Holding. It moves into a "Held by Tidykeep" folder inside the chosen folder. In Holding, swipe a file for Put back or Delete; Put all back and Empty Holding are at the bottom. Large Files lists files of 100 MB or more, if there are any.
+3. Files. Files changed in the last 7 days are kept out of Duplicate Files and Large Files by default, because they are probably still in use, so first open the Rules tab and turn off "Files changed in the last 7 days" under Always Keep. In the Files app, make a folder in On My iPhone, put any file in it, then touch and hold the file and choose Duplicate. In Tidykeep, open Duplicate Files, choose that folder, and move the extra copy to Holding. It moves into a "Held by Tidykeep" folder inside the chosen folder. Holding offers Put back and Delete now. Large Files lists files of 100 MB or more, if there are any.
 
 4. Contacts. In Contacts, create two cards with the same name and the same phone number. In Tidykeep, open Duplicate Contacts, tap Continue and allow access, then open the pair. The preview shows which card each detail comes from. Merging asks "Merge anyway", because iOS doesn't let the app read contact notes. A vCard backup is saved in the app first, and Undo is in History.
 
@@ -285,7 +284,7 @@ Only the owner can do these.
 - [ ] **Real support email.** The placeholder `support@tidykeep.app` only works if you own
       that domain. Make a dedicated address (for example a new free mail account just for
       Tidykeep) and replace the placeholder in all four places:
-      `Copy.About.supportEmail` in `TidykeepKit/Sources/TidykeepUI/Rules/RulesCopy.swift`,
+      `Copy.About.supportEmail` in `TidykeepKit/Sources/TidykeepUI/Copy.swift`,
       `docs/PRIVACY.md`, `TidykeepKit/Sources/TidykeepUI/Resources/PrivacyPolicy.txt`, and
       the App Review contact.
 - [ ] **Support URL and Privacy Policy URL are both required**, and both must open without a

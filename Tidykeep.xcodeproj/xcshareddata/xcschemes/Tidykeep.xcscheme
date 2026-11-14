@@ -27,7 +27,10 @@
       buildConfiguration = "Debug"
       selectedDebuggerIdentifier = "Xcode.DebuggerFoundation.Debugger.LLDB"
       selectedLauncherIdentifier = "Xcode.DebuggerFoundation.Launcher.LLDB"
+      language = "en"
       shouldUseLaunchSchemeArgsEnv = "YES"
+      region = "US"
+      preferredScreenCaptureFormat = "screenshots"
       onlyGenerateCoverageForSpecifiedTargets = "NO">
       <MacroExpansion>
          <BuildableReference
@@ -66,10 +69,43 @@
             parallelizable = "NO">
             <BuildableReference
                BuildableIdentifier = "primary"
-               BlueprintIdentifier = "TidykeepScanTests"
-               BuildableName = "TidykeepScanTests"
-               BlueprintName = "TidykeepScanTests"
+               BlueprintIdentifier = "TidykeepFilesTests"
+               BuildableName = "TidykeepFilesTests"
+               BlueprintName = "TidykeepFilesTests"
                ReferencedContainer = "container:TidykeepKit">
+            </BuildableReference>
+         </TestableReference>
+         <TestableReference
+            skipped = "NO"
+            parallelizable = "NO">
+            <BuildableReference
+               BuildableIdentifier = "primary"
+               BlueprintIdentifier = "TidykeepContactsTests"
+               BuildableName = "TidykeepContactsTests"
+               BlueprintName = "TidykeepContactsTests"
+               ReferencedContainer = "container:TidykeepKit">
+            </BuildableReference>
+         </TestableReference>
+         <TestableReference
+            skipped = "NO"
+            parallelizable = "NO">
+            <BuildableReference
+               BuildableIdentifier = "primary"
+               BlueprintIdentifier = "7BC476ADD61ECB6CCE87CD9F"
+               BuildableName = "TidykeepUITests.xctest"
+               BlueprintName = "TidykeepUITests"
+               ReferencedContainer = "container:Tidykeep.xcodeproj">
+            </BuildableReference>
+         </TestableReference>
+         <TestableReference
+            skipped = "NO"
+            parallelizable = "NO">
+            <BuildableReference
+               BuildableIdentifier = "primary"
+               BlueprintIdentifier = "F1F9DAF61E8BBD3C3B641ED4"
+               BuildableName = "TidykeepAppTests.xctest"
+               BlueprintName = "TidykeepAppTests"
+               ReferencedContainer = "container:Tidykeep.xcodeproj">
             </BuildableReference>
          </TestableReference>
       </Testables>

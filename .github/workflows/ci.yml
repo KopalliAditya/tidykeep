@@ -1,0 +1,320 @@
+# Shows that Tidykeep works end to end on an iOS simulator.
+#
+#   package    the Swift package's tests on macOS, plus the repo rules: no network code,
+#              no co-author trailers, shell scripts that pass a pinned ShellCheck.
+#   simulator  the app built for the iOS 26 simulator, a photo library seeded with bursts,
+#              re-saved copies, screenshots and long videos, then every flow driven like a
+#              person would: Similar Shots, Copies, Files and Holding, Contacts, History and
+#              Rules. Each main screen is screenshotted (light, plus a dark pass) into the
+#              "screenshots" artifact and checked with Xcode's accessibility audit.
+#
+# macOS minutes are the expensive kind (10x against a private repo's quota), so: no matrix,
+# nothing heavy cached, a newer push to the same branch or pull request cancels the run in
+# progress, and changes to docs alone run nothing. The simulator job runs on pushes to main
+# and manual runs; on a pull request only when it has the "simulator" label (add the label,
+# then push, or run the workflow by hand on the branch).
+#
+# Event data (SHAs, inputs) reaches the scripts only through env:, never pasted into run:.
+name: CI
+
+on:
+  push:
+    branches: [main]
+    # Keep this list the same as pull_request's.
+    paths-ignore:
+      - "**/*.md"
+      - "docs/**"
+      - "bench/**"
+      - LICENSE
+      - NOTICE
+  pull_request:
+    paths-ignore:
+      - "**/*.md"
+      - "docs/**"
+      - "bench/**"
+      - LICENSE
+      - NOTICE
+  workflow_dispatch:
+    inputs:
+      a11y_audit:
+        description: "Accessibility audit: fail on issues (strict) or only report them"
+        type: choice
+        options: [strict, report]
+        default: strict
+      xcode_version:
+        description: "Xcode 26 version to use, like 26.5 (empty: newest installed)"
+        type: string
+        default: ""
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+defaults:
+  run:
+    # bash -eo pipefail: a failing xcodebuild fails its step even when piped to xcbeautify.
+    shell: bash
+
+env:
+  # An Xcode version to use. Empty unless a manual run names one, and then
+  # scripts/ci/select-xcode.sh picks the newest Xcode 26 installed.
+  XCODE_PIN: ${{ inputs.xcode_version }}
+  XCODEGEN_VERSION: "2.46.0"
+  XCODEGEN_SHA256: 4d9e34b62172d645eed6457cac13fc222569974098ef4ee9c3368bedf0196806
+  SHELLCHECK_VERSION: v0.11.0
+  SHELLCHECK_SHA256: 56affdd8de5527894dca6dc3d7e0a99a873b0f004d7aabc30ae407d3f48b0a79
+  PROJECT: Tidykeep.xcodeproj
+  SCHEME: Tidykeep
+  BUNDLE_ID: com.kopalliaditya.tidykeep
+  NSUnbufferedIO: "YES"
+
+jobs:
+  package:
+    name: package
+    runs-on: macos-26
+    timeout-minutes: 20
+    steps:
+      - name: Check out
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          # The whole history: the trailer check reads all of it on a push, and the PR's commits.
+          fetch-depth: 0
+
+      - name: Select Xcode 26
+        run: scripts/ci/select-xcode.sh
+
+      - name: No network code
+        run: scripts/check-no-network.sh
+
+      - name: No co-author trailers
+        env:
+          EVENT: ${{ github.event_name }}
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          if [ "$EVENT" = pull_request ]; then
+            range="$BASE_SHA..$HEAD_SHA"
+          else
+            # All history the commit reaches, not only this push: the first push of main,
+            # a force-push, and earlier pushes that ran no CI (docs only) are covered too.
+            range="$GITHUB_SHA"
+          fi
+          found="$(git log --format='%h %s' -i --grep='^co-authored-by:' "$range")"
+          if [ -n "$found" ]; then
+            echo "::error::Commits with a Co-Authored-By trailer (this repo doesn't use them):"
+            echo "$found"
+            exit 1
+          fi
+          echo "No co-author trailers in $range"
+
+      # The runner image has no ShellCheck, so a pinned release is installed (and the step
+      # fails if it can't be).
+      - name: Install ShellCheck
+        run: scripts/ci/install-shellcheck.sh
+
+      - name: ShellCheck
+        run: |
+          # Every finding counts in the CI scripts. The others count from warnings up:
+          # check-no-network.sh splits $not_app into grep options on purpose (SC2086, info).
+          shellcheck scripts/ci/*.sh
+          shellcheck --severity=warning scripts/*.sh
+
+      - name: Package tests (macOS)
+        timeout-minutes: 15
+        run: scripts/test.sh
+
+  simulator:
+    name: simulator
+    needs: package
+    if: ${{ github.event_name != 'pull_request' || contains(github.event.pull_request.labels.*.name, 'simulator') }}
+    runs-on: macos-26
+    # More than the step caps below add up to (84 minutes, plus a few for the quick steps),
+    # so a stuck step times out by itself and the export, summary and uploads still run.
+    # A normal run needs far less. Change the caps and this together.
+    timeout-minutes: 90
+    env:
+      # TK_* reach the tests (scripts/ci/run-tests.sh passes them through).
+      TK_A11Y_AUDIT: ${{ inputs.a11y_audit || 'strict' }}
+      # TidykeepAppTests fail, rather than skip, when the grants or the seed are missing.
+      TK_REQUIRE_ACCESS: "1"
+    steps:
+      - name: Check out
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Prepare
+        run: |
+          # The folders first: the always() steps at the end read them even when choosing
+          # Xcode fails.
+          {
+            echo "RESULTS=$RUNNER_TEMP/results"
+            echo "LOGS=$RUNNER_TEMP/logs"
+            echo "SHOTS=$RUNNER_TEMP/screenshots"
+            echo "SEED=$RUNNER_TEMP/seed"
+            echo "DERIVED_DATA=$RUNNER_TEMP/DerivedData"
+          } >> "$GITHUB_ENV"
+          mkdir -p "$RUNNER_TEMP/results" "$RUNNER_TEMP/logs" "$RUNNER_TEMP/screenshots"
+          # Spotlight indexing competes with the build for the runner's three cores.
+          sudo mdutil -a -i off >/dev/null 2>&1 || true
+          scripts/ci/select-xcode.sh
+          # The first simctl call on a fresh runner can take minutes while CoreSimulator
+          # starts; start it now so it's ready after the build.
+          (xcrun simctl list runtimes </dev/null >/dev/null 2>&1 &)
+
+      - name: Install XcodeGen
+        run: scripts/ci/install-xcodegen.sh
+
+      - name: Generate the project
+        run: |
+          xcodegen generate --spec project.yml
+          if [ -n "$(git status --porcelain -- "$PROJECT" App/Info.plist)" ]; then
+            echo "::warning::The committed $PROJECT or App/Info.plist differs from what project.yml generates. Run xcodegen generate and commit the result."
+            git status --porcelain -- "$PROJECT" App/Info.plist
+          fi
+
+      - name: Build for testing
+        id: build
+        timeout-minutes: 20
+        run: |
+          if command -v xcbeautify >/dev/null 2>&1; then
+            pretty() { xcbeautify --renderer github-actions; }
+          else
+            pretty() { cat; }
+          fi
+          xcodebuild build-for-testing \
+            -project "$PROJECT" \
+            -scheme "$SCHEME" \
+            -destination "generic/platform=iOS Simulator" \
+            -derivedDataPath "$DERIVED_DATA" \
+            ARCHS=arm64 ONLY_ACTIVE_ARCH=YES \
+            COMPILER_INDEX_STORE_ENABLE=NO \
+            CODE_SIGNING_ALLOWED=NO \
+            2>&1 | tee "$LOGS/build.log" | pretty
+
+      - name: Pick a simulator
+        timeout-minutes: 5
+        run: scripts/ci/pick-simulator.sh
+
+      - name: Make the seed photos and videos
+        run: |
+          # Built from the pictures macOS ships (/Library/User Pictures): no personal data.
+          swift scripts/ci/make-seed-media.swift "$SEED"
+
+      - name: Boot the simulator
+        timeout-minutes: 8
+        run: scripts/ci/boot-simulator.sh "$SIM_UDID"
+
+      - name: Install, grant access and seed
+        id: install
+        timeout-minutes: 4
+        run: |
+          app="$DERIVED_DATA/Build/Products/Debug-iphonesimulator/Tidykeep.app"
+          [ -d "$app" ] || { echo "::error::No app at $app"; exit 1; }
+          xcrun simctl install "$SIM_UDID" "$app"
+          scripts/ci/grant-privacy.sh "$SIM_UDID" "$BUNDLE_ID" photos contacts
+          scripts/ci/seed-simulator.sh "$SIM_UDID" "$SEED"
+
+      # The package tests that build for iOS (the scheme's list). TidykeepScanTests is
+      # macOS only and runs in the package job.
+      - name: Package tests (iOS simulator)
+        id: package_tests
+        if: ${{ !cancelled() && steps.install.outcome == 'success' }}
+        timeout-minutes: 8
+        run: |
+          scripts/ci/run-tests.sh package \
+            TidykeepCoreTests TidykeepVisionTests TidykeepFilesTests TidykeepContactsTests \
+            -- -test-timeouts-enabled YES -default-test-execution-time-allowance 300
+
+      # The UI tests run in two phases because XCTest runs classes in name order, and
+      # EndToEndUITests really removes photos. Screenshots and the audit go first, so they
+      # see the whole seeded library; each phase launches the app afresh per test.
+      - name: UI tests (screenshots and accessibility audit)
+        id: ui_shots
+        if: ${{ !cancelled() && steps.install.outcome == 'success' }}
+        timeout-minutes: 15
+        run: |
+          # A photo check can take up to three minutes on this runner, so each test gets ten.
+          scripts/ci/run-tests.sh ui-shots \
+            TidykeepUITests/ScreenshotTests TidykeepUITests/AccessibilityAuditTests \
+            -- -test-timeouts-enabled YES -default-test-execution-time-allowance 600 \
+               -maximum-test-execution-time-allowance 900
+
+      - name: Screenshot after a failure (screenshots and audit)
+        if: ${{ failure() && steps.ui_shots.outcome == 'failure' }}
+        run: scripts/ci/screenshot.sh "$SIM_UDID" "$SHOTS" after-ui-shots-failure
+
+      - name: UI tests (end to end)
+        id: ui_flows
+        if: ${{ !cancelled() && steps.install.outcome == 'success' }}
+        timeout-minutes: 15
+        run: |
+          scripts/ci/run-tests.sh ui-flows TidykeepUITests/EndToEndUITests \
+            -- -test-timeouts-enabled YES -default-test-execution-time-allowance 600 \
+               -maximum-test-execution-time-allowance 900
+
+      - name: Screenshot after a failure (end to end)
+        if: ${{ failure() && steps.ui_flows.outcome == 'failure' }}
+        run: scripts/ci/screenshot.sh "$SIM_UDID" "$SHOTS" after-ui-flows-failure
+
+      - name: App tests (PhotoKit and Contacts in the app)
+        id: app_tests
+        if: ${{ !cancelled() && steps.install.outcome == 'success' }}
+        timeout-minutes: 6
+        run: |
+          scripts/ci/run-tests.sh app TidykeepAppTests \
+            -- -test-timeouts-enabled YES -default-test-execution-time-allowance 300
+
+      - name: Export screenshots
+        if: ${{ always() }}
+        timeout-minutes: 2
+        run: |
+          for phase in ui-shots ui-flows app package; do
+            scripts/ci/export-attachments.sh "$RESULTS/$phase.xcresult" "$SHOTS/$phase"
+          done
+          find "$SHOTS" -type d -empty -delete 2>/dev/null || true
+
+      - name: Job summary
+        if: ${{ always() }}
+        timeout-minutes: 1
+        run: |
+          {
+            echo "## Tidykeep on the iOS simulator"
+            echo
+            echo "Xcode ${XCODE_VERSION:-?} (iOS SDK ${IOS_SDK:-?}) on ${SIM_NAME:-no simulator} (iOS ${SIM_OS:-?}). Seeded ${TK_SEED_PHOTOS:-0} photos and ${TK_SEED_VIDEOS:-0} videos. Accessibility audit: $TK_A11Y_AUDIT."
+            echo
+            scripts/ci/summarize-results.sh "$RESULTS/package.xcresult" "$RESULTS/ui-shots.xcresult" \
+              "$RESULTS/ui-flows.xcresult" "$RESULTS/app.xcresult"
+            echo
+            if [ -d "$SHOTS/ui-shots" ]; then
+              echo "**Screenshots** (ui-shots/): $(find "$SHOTS/ui-shots" -name '[0-9][0-9]-*.png' | sed 's|.*/||' | sort | tr '\n' ' ')"
+              echo
+            fi
+            echo "Download them: \`gh run download $GITHUB_RUN_ID -n screenshots\`"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload screenshots
+        if: ${{ always() }}
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: screenshots
+          path: ${{ env.SHOTS }}
+          if-no-files-found: warn
+          retention-days: 7
+          overwrite: true
+
+      - name: Upload result bundles
+        if: ${{ failure() }}
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: xcresults
+          path: |
+            ${{ env.RESULTS }}
+            ${{ env.LOGS }}
+          if-no-files-found: ignore
+          retention-days: 5
+          overwrite: true

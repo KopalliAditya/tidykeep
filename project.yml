@@ -1,4 +1,6 @@
 # Generates Tidykeep.xcodeproj. After editing, run: xcodegen generate
+# CI generates the project with the same XcodeGen release (scripts/ci/install-xcodegen.sh)
+# and warns when the committed project differs from what this file makes.
 name: Tidykeep
 options:
   bundleIdPrefix: com.kopalliaditya
@@ -29,6 +31,12 @@ targets:
         product: TidykeepVision
       - package: TidykeepKit
         product: TidykeepPhotoKit
+      # Duplicate and large files, and the "Held by Tidykeep" folder.
+      - package: TidykeepKit
+        product: TidykeepFiles
+      # Duplicate contact cards: finding, merging with a vCard backup, and undo.
+      - package: TidykeepKit
+        product: TidykeepContacts
     info:
       path: App/Info.plist
       properties:
@@ -36,10 +44,17 @@ targets:
         CFBundleShortVersionString: $(MARKETING_VERSION)
         CFBundleVersion: $(CURRENT_PROJECT_VERSION)
         LSApplicationCategoryType: public.app-category.photography
+        # Both strings are what iOS shows in its permission prompts. They say what is looked
+        # at and that nothing leaves the phone. scripts/check-no-network.sh fails the build if
+        # any plist mentions the cloud service by name, so neither does.
         NSPhotoLibraryUsageDescription: >-
-          Tidykeep looks through the photos on this iPhone to find near-identical shots and
-          suggest the best one to keep. When you choose, it moves the extras to Recently
-          Deleted. Tidykeep never sends your photos anywhere.
+          Tidykeep looks through the photos and videos on this iPhone to find similar shots,
+          copies, screenshots and big videos you may not need. When you confirm, it moves the
+          ones you choose to Recently Deleted, and adds a removed copy's favorite and albums to
+          the one you keep. Nothing leaves your iPhone.
+        NSContactsUsageDescription: >-
+          Tidykeep compares names, phone numbers and email addresses on this iPhone to find
+          duplicate cards, and saves a backup before any merge. Nothing leaves your iPhone.
         PHPhotoLibraryPreventAutomaticLimitedAccessAlert: true
         ITSAppUsesNonExemptEncryption: false
         UILaunchScreen: {}
@@ -59,6 +74,57 @@ targets:
         CODE_SIGN_STYLE: Automatic
         ENABLE_USER_SCRIPT_SANDBOXING: YES
         SWIFT_EMIT_LOC_STRINGS: YES
+      configs:
+        # TidykeepAppTests run inside the app and call package code the app links in
+        # statically. Debug keeps every symbol so those calls link; Release is unchanged.
+        Debug:
+          DEAD_CODE_STRIPPING: NO
+
+  # Tests that run inside the app on a simulator, with the app's own privacy access: the
+  # seeded photo library through TidykeepPhotoKit, and the simulator's address book through
+  # TidykeepContacts. Simulator only; see the guards in each file.
+  TidykeepAppTests:
+    type: bundle.unit-test
+    platform: iOS
+    sources:
+      - path: TidykeepAppTests
+    dependencies:
+      # Sets TEST_HOST and BUNDLE_LOADER: the tests run in the app's process and use the
+      # app's copy of the package modules, which the app's build leaves importable in the
+      # products folder. Not listed as package dependencies here: linking them again would
+      # put a second copy in the test bundle, and XcodeGen 2.46.0 writes `link: false`
+      # package dependencies with new random IDs on every generate.
+      - target: Tidykeep
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.kopalliaditya.tidykeep.apptests
+        GENERATE_INFOPLIST_FILE: YES
+        TARGETED_DEVICE_FAMILY: "1"
+        CODE_SIGN_STYLE: Automatic
+        SWIFT_EMIT_LOC_STRINGS: NO
+        # The package modules aren't declared dependencies of this target (see above), and
+        # the explicit-module scanner only resolves declared ones. Implicit modules find them
+        # in the products folder like before. This bundle is small, so the build barely slows.
+        SWIFT_ENABLE_EXPLICIT_MODULES: NO
+
+  # End-to-end tests that drive the app like a person: onboarding, Similar Shots, Copies,
+  # Files and Holding, Contacts, History and Rules, plus the App Store screenshots and an
+  # accessibility audit of each main screen.
+  TidykeepUITests:
+    type: bundle.ui-testing
+    platform: iOS
+    sources:
+      - path: TidykeepUITests
+    dependencies:
+      # Sets TEST_TARGET_NAME, the app the tests launch.
+      - target: Tidykeep
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.kopalliaditya.tidykeep.uitests
+        GENERATE_INFOPLIST_FILE: YES
+        TARGETED_DEVICE_FAMILY: "1"
+        CODE_SIGN_STYLE: Automatic
+        SWIFT_EMIT_LOC_STRINGS: NO
 schemes:
   Tidykeep:
     build:
@@ -68,9 +134,26 @@ schemes:
       config: Debug
     test:
       config: Debug
+      # English and the US region, so labels and date formats match what the UI tests look for.
+      language: en
+      region: US
+      # Screenshots rather than screen recordings: much smaller result bundles. The UI tests
+      # attach the screens worth keeping themselves, with lifetime keepAlways.
+      captureScreenshotsAutomatically: true
+      deleteScreenshotsWhenEachTestSucceeds: true
+      preferredScreenCaptureFormat: screenshots
+      # The package tests that also run on iOS: Vision behaves differently there, and Core,
+      # Files and Contacts have `#if os(iOS)` code that macOS never reaches. TidykeepScanTests
+      # is left out: its render harness is AppKit (macOS only), so it runs on the Mac through
+      # scripts/test.sh and nowhere else.
       targets:
         - package: TidykeepKit/TidykeepCoreTests
         - package: TidykeepKit/TidykeepVisionTests
-        - package: TidykeepKit/TidykeepScanTests
+        - package: TidykeepKit/TidykeepFilesTests
+        - package: TidykeepKit/TidykeepContactsTests
+        - name: TidykeepUITests
+        # Reads the library the UI tests left behind and adds a photo of its own, so CI runs
+        # it after them (each phase with -only-testing, in this order).
+        - name: TidykeepAppTests
     archive:
       config: Release

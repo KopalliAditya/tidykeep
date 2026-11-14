@@ -17,7 +17,7 @@ Built VoiceOver-first: every screen, photo and decision has a spoken label.
 | Photos | **Similar Shots:** runs of near-identical photos, the best pick in each and why ("Best pick: sharpest and best faces"). **Copies:** the same photo re-saved, resized, re-encoded, lightly cropped or screenshotted, found across the whole library; the copy with the most detail stays and the others' favorite and albums move onto it. **Screenshots:** by month, nothing marked in advance. **Big Videos:** over 1 minute, sorted by duration × pixels. Photos and videos show counts, pixels and durations, never bytes. |
 | Files | Only in folders the user picks. **Duplicate Files:** same size, then a 64 KB head-and-tail hash, then a full SHA-256. **Large Files:** 100 MB and over, with exact bytes. **Holding:** a file moves into a "Held by Tidykeep" folder at the root of the folder it came from (a same-volume rename), with Put back, Delete now and Empty. |
 | Contacts | Duplicate cards by name, phone or email, only within one account. A phone number shared by three or more cards never counts as a match. A merge preview shows where each field comes from; a vCard backup is written first, and Undo puts things back. |
-| History | A receipt for every change, written before the change (in progress) and after it (done, failed or partial). Receipts hold metadata only, never images, and each one says how to get things back. |
+| History | A receipt for every change, written before the change (in progress) and after it (done, failed or partial). Receipts hold metadata only, never images, and are kept for a year. Each one shows the way back where there is one (Recently Deleted for photos, for 30 days; Put back for files in Holding; Undo for contacts) and says so when there is none, as after Delete now or Empty in Holding. |
 | Rules | What's always kept (favorites, edited and hidden photos; chosen albums; screenshots in albums; files changed in the last 7 days; My Card), what to look at, folders, haptics, saved data, and About. |
 
 It can't clear caches, System Data, Messages attachments or other apps' data, because iOS
@@ -125,9 +125,13 @@ app's Acknowledgements.
 `bench/` compares the app's signals (the softened Vision feature print, then DINOv2) with
 open-source hashes and image embeddings on public datasets and on the images that ship with
 macOS, and runs the strongest of them inside the app's own grouping code. It is where the
-engine's constants come from (`bench/rules.py`) and where the choice of model was made:
-SSCD and CLIP scored as well or better but are MIT-licensed, so they can't ship; DINOv2-small
-is the best Apache-2.0 embedding for copies and for real photo series. Results and caveats are in `bench/RESULTS.md`, setup in `bench/README.md`.
+engine's constants come from (`bench/rules.py`) and where the choice of model was made.
+SSCD came closest to winning everywhere but is MIT-licensed, so it can't ship (CLIP is MIT
+too, and scored below DINOv2-small everywhere except screenshots). Among the Apache-2.0
+models, DINOv2-small ties for best on copies (AP 1.000, with the larger DINOv2-base; SigLIP 2
+gets 0.937) and is close on real photo series (0.910, against SigLIP 2's 0.941) at about a
+quarter of SigLIP 2's size (88 against 372 MB fp32).
+Results and caveats are in `bench/RESULTS.md`, setup in `bench/README.md`.
 It is a development tool only: nothing in `bench/` ships in the app.
 
 ## Build and run (Mac with Xcode 26)
@@ -174,7 +178,9 @@ CI runs on GitHub Actions macOS runners with Xcode 26.x (iOS 26.5 SDK, Swift 6.3
 (the only place the `#if os(iOS)` code compiles), and runs the UI tests on the iPhone 17 Pro
 Max simulator, after adding known photos and videos to its library
 (`scripts/ci/make-seed-media.swift`, which uses only images that ship with macOS or synthetic
-scenes). The UI tests also save the 1320 × 2868 screenshots for the App Store listing (see
+scenes). Files and contacts come from the app itself: launched with `-TKSeedFiles YES` and
+`-TKSeedContacts YES` on the simulator, it makes a sample folder of duplicate files and
+made-up duplicate cards. The UI tests also save the 1320 × 2868 screenshots for the App Store listing (see
 `docs/APP_STORE.md`). Nothing in CI signs, uploads or publishes.
 
 ## Calibration

@@ -8,20 +8,55 @@
 
 /* Begin PBXBuildFile section */
 		0318AE5ED907960799218102 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = A2F79EF90F575055ACF0CEF7 /* Assets.xcassets */; };
+		03E78A510D8A55E30B0A5484 /* TestEnvironment.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6E049AD5D305DF71E4D2BFE8 /* TestEnvironment.swift */; };
+		0A8EBC1487C606820CAA71F5 /* TidykeepFiles in Frameworks */ = {isa = PBXBuildFile; productRef = 965EBDDE0189CB62FC28263F /* TidykeepFiles */; };
+		1AD5F85AED316CBF6E84F52F /* TidykeepContacts in Frameworks */ = {isa = PBXBuildFile; productRef = 2786CE7B2E77879474070E5E /* TidykeepContacts */; };
 		1BC35EE4281DDE90581B3CBD /* TidykeepPhotoKit in Frameworks */ = {isa = PBXBuildFile; productRef = E4514B95A10AB44D6BDB7BF1 /* TidykeepPhotoKit */; };
+		38BDF87C4C4C22C08E901848 /* ScreenshotTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = C170734525EBC11EE61435B9 /* ScreenshotTests.swift */; };
 		513F8543051941CDCAC915FC /* PrivacyInfo.xcprivacy in Resources */ = {isa = PBXBuildFile; fileRef = 76DBAA502E06197E1D918BE9 /* PrivacyInfo.xcprivacy */; };
+		64E8114411EE74C6A3FBA597 /* PhotoKitIntegrationTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A658D4452C6C3940988756E9 /* PhotoKitIntegrationTests.swift */; };
+		82EAC8E9B1C1953858FA9B77 /* ContactsIntegrationTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = C37007777B12B38A0D6C1A69 /* ContactsIntegrationTests.swift */; };
+		A4613FF013822F7C247AC538 /* AccessibilityAuditTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5736FA414766B478182163E3 /* AccessibilityAuditTests.swift */; };
 		A8666B85C3881EF577CE7EE8 /* TidykeepVision in Frameworks */ = {isa = PBXBuildFile; productRef = D8E3C103F17C29F3C71D272C /* TidykeepVision */; };
+		B68655604CE624A2FBCCC623 /* EndToEndUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = E30A2221652453F068491DB4 /* EndToEndUITests.swift */; };
+		BEA4335C20E5DFC98B91CFDA /* UITestSupport.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4286790923472B655AA42793 /* UITestSupport.swift */; };
 		C19739F117331F56949ED16F /* TidykeepApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0DBA47255282FDAE53E37A1F /* TidykeepApp.swift */; };
 		DF45D192641A3889BC84CD7B /* TidykeepUI in Frameworks */ = {isa = PBXBuildFile; productRef = 546BA9ACFEB802966D2C5915 /* TidykeepUI */; };
 /* End PBXBuildFile section */
 
+/* Begin PBXContainerItemProxy section */
+		00A9D22845E368EB5E7F0499 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = E9896BB2D50D1C183E6F49FD /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = 5B38C9BEA7D1590954F25898;
+			remoteInfo = Tidykeep;
+		};
+		155AC8F2234839063839ADFC /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = E9896BB2D50D1C183E6F49FD /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = 5B38C9BEA7D1590954F25898;
+			remoteInfo = Tidykeep;
+		};
+/* End PBXContainerItemProxy section */
+
 /* Begin PBXFileReference section */
+		0CD1A282E69A32BDB9D50103 /* TidykeepUITests.xctest */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.cfbundle; path = TidykeepUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		0DBA47255282FDAE53E37A1F /* TidykeepApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TidykeepApp.swift; sourceTree = "<group>"; };
 		18854472381490333DA541FB /* Tidykeep.app */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.application; path = Tidykeep.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		28A112D137660BD2FC42E998 /* TidykeepAppTests.xctest */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.cfbundle; path = TidykeepAppTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		308282ECCF0C32BC92AFBCE3 /* TidykeepKit */ = {isa = PBXFileReference; lastKnownFileType = folder; name = TidykeepKit; path = TidykeepKit; sourceTree = SOURCE_ROOT; };
+		4286790923472B655AA42793 /* UITestSupport.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UITestSupport.swift; sourceTree = "<group>"; };
+		5736FA414766B478182163E3 /* AccessibilityAuditTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AccessibilityAuditTests.swift; sourceTree = "<group>"; };
 		66CA11D148C1DC119F162B5B /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
+		6E049AD5D305DF71E4D2BFE8 /* TestEnvironment.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TestEnvironment.swift; sourceTree = "<group>"; };
 		76DBAA502E06197E1D918BE9 /* PrivacyInfo.xcprivacy */ = {isa = PBXFileReference; path = PrivacyInfo.xcprivacy; sourceTree = "<group>"; };
 		A2F79EF90F575055ACF0CEF7 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
+		A658D4452C6C3940988756E9 /* PhotoKitIntegrationTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PhotoKitIntegrationTests.swift; sourceTree = "<group>"; };
+		C170734525EBC11EE61435B9 /* ScreenshotTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScreenshotTests.swift; sourceTree = "<group>"; };
+		C37007777B12B38A0D6C1A69 /* ContactsIntegrationTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContactsIntegrationTests.swift; sourceTree = "<group>"; };
+		E30A2221652453F068491DB4 /* EndToEndUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EndToEndUITests.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -32,6 +67,8 @@
 				DF45D192641A3889BC84CD7B /* TidykeepUI in Frameworks */,
 				A8666B85C3881EF577CE7EE8 /* TidykeepVision in Frameworks */,
 				1BC35EE4281DDE90581B3CBD /* TidykeepPhotoKit in Frameworks */,
+				0A8EBC1487C606820CAA71F5 /* TidykeepFiles in Frameworks */,
+				1AD5F85AED316CBF6E84F52F /* TidykeepContacts in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -46,12 +83,35 @@
 			name = Packages;
 			sourceTree = "<group>";
 		};
+		36DB2B4CDB82B23A28F7D4D7 /* TidykeepUITests */ = {
+			isa = PBXGroup;
+			children = (
+				5736FA414766B478182163E3 /* AccessibilityAuditTests.swift */,
+				E30A2221652453F068491DB4 /* EndToEndUITests.swift */,
+				C170734525EBC11EE61435B9 /* ScreenshotTests.swift */,
+				4286790923472B655AA42793 /* UITestSupport.swift */,
+			);
+			path = TidykeepUITests;
+			sourceTree = "<group>";
+		};
 		5824BE636401521D7B7FE668 /* Products */ = {
 			isa = PBXGroup;
 			children = (
 				18854472381490333DA541FB /* Tidykeep.app */,
+				28A112D137660BD2FC42E998 /* TidykeepAppTests.xctest */,
+				0CD1A282E69A32BDB9D50103 /* TidykeepUITests.xctest */,
 			);
 			name = Products;
+			sourceTree = "<group>";
+		};
+		6DDC2E6514E0B20BF1C67A32 /* TidykeepAppTests */ = {
+			isa = PBXGroup;
+			children = (
+				C37007777B12B38A0D6C1A69 /* ContactsIntegrationTests.swift */,
+				A658D4452C6C3940988756E9 /* PhotoKitIntegrationTests.swift */,
+				6E049AD5D305DF71E4D2BFE8 /* TestEnvironment.swift */,
+			);
+			path = TidykeepAppTests;
 			sourceTree = "<group>";
 		};
 		D5DBBB7CBC04029A852DFD7F = {
@@ -59,6 +119,8 @@
 			children = (
 				F43C2A55013B3B220257B15E /* App */,
 				229B2A4CE849010B79C8A78D /* Packages */,
+				6DDC2E6514E0B20BF1C67A32 /* TidykeepAppTests */,
+				36DB2B4CDB82B23A28F7D4D7 /* TidykeepUITests */,
 				5824BE636401521D7B7FE668 /* Products */,
 			);
 			sourceTree = "<group>";
@@ -94,10 +156,48 @@
 				546BA9ACFEB802966D2C5915 /* TidykeepUI */,
 				D8E3C103F17C29F3C71D272C /* TidykeepVision */,
 				E4514B95A10AB44D6BDB7BF1 /* TidykeepPhotoKit */,
+				965EBDDE0189CB62FC28263F /* TidykeepFiles */,
+				2786CE7B2E77879474070E5E /* TidykeepContacts */,
 			);
 			productName = Tidykeep;
 			productReference = 18854472381490333DA541FB /* Tidykeep.app */;
 			productType = "com.apple.product-type.application";
+		};
+		7BC476ADD61ECB6CCE87CD9F /* TidykeepUITests */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 1EDC2EC9EA855604F4DD74B6 /* Build configuration list for PBXNativeTarget "TidykeepUITests" */;
+			buildPhases = (
+				8FD56B1296FAB0E876CC7D91 /* Sources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+				BA5A830E290114A84517C46D /* PBXTargetDependency */,
+			);
+			name = TidykeepUITests;
+			packageProductDependencies = (
+			);
+			productName = TidykeepUITests;
+			productReference = 0CD1A282E69A32BDB9D50103 /* TidykeepUITests.xctest */;
+			productType = "com.apple.product-type.bundle.ui-testing";
+		};
+		F1F9DAF61E8BBD3C3B641ED4 /* TidykeepAppTests */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 93C5237E16C493C09E24BAC8 /* Build configuration list for PBXNativeTarget "TidykeepAppTests" */;
+			buildPhases = (
+				9D744F46E8DDDE8F67D9651D /* Sources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+				1DA981498267CE51751CB2CB /* PBXTargetDependency */,
+			);
+			name = TidykeepAppTests;
+			packageProductDependencies = (
+			);
+			productName = TidykeepAppTests;
+			productReference = 28A112D137660BD2FC42E998 /* TidykeepAppTests.xctest */;
+			productType = "com.apple.product-type.bundle.unit-test";
 		};
 /* End PBXNativeTarget section */
 
@@ -109,6 +209,15 @@
 				LastUpgradeCheck = 1430;
 				TargetAttributes = {
 					5B38C9BEA7D1590954F25898 = {
+						DevelopmentTeam = "";
+						ProvisioningStyle = Automatic;
+					};
+					7BC476ADD61ECB6CCE87CD9F = {
+						DevelopmentTeam = "";
+						ProvisioningStyle = Automatic;
+						TestTargetID = 5B38C9BEA7D1590954F25898;
+					};
+					F1F9DAF61E8BBD3C3B641ED4 = {
 						DevelopmentTeam = "";
 						ProvisioningStyle = Automatic;
 					};
@@ -132,6 +241,8 @@
 			projectRoot = "";
 			targets = (
 				5B38C9BEA7D1590954F25898 /* Tidykeep */,
+				F1F9DAF61E8BBD3C3B641ED4 /* TidykeepAppTests */,
+				7BC476ADD61ECB6CCE87CD9F /* TidykeepUITests */,
 			);
 		};
 /* End PBXProject section */
@@ -149,6 +260,27 @@
 /* End PBXResourcesBuildPhase section */
 
 /* Begin PBXSourcesBuildPhase section */
+		8FD56B1296FAB0E876CC7D91 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				A4613FF013822F7C247AC538 /* AccessibilityAuditTests.swift in Sources */,
+				B68655604CE624A2FBCCC623 /* EndToEndUITests.swift in Sources */,
+				38BDF87C4C4C22C08E901848 /* ScreenshotTests.swift in Sources */,
+				BEA4335C20E5DFC98B91CFDA /* UITestSupport.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		9D744F46E8DDDE8F67D9651D /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				82EAC8E9B1C1953858FA9B77 /* ContactsIntegrationTests.swift in Sources */,
+				64E8114411EE74C6A3FBA597 /* PhotoKitIntegrationTests.swift in Sources */,
+				03E78A510D8A55E30B0A5484 /* TestEnvironment.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 		B8229131AFADE686DFB37865 /* Sources */ = {
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
@@ -159,6 +291,19 @@
 		};
 /* End PBXSourcesBuildPhase section */
 
+/* Begin PBXTargetDependency section */
+		1DA981498267CE51751CB2CB /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = 5B38C9BEA7D1590954F25898 /* Tidykeep */;
+			targetProxy = 00A9D22845E368EB5E7F0499 /* PBXContainerItemProxy */;
+		};
+		BA5A830E290114A84517C46D /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = 5B38C9BEA7D1590954F25898 /* Tidykeep */;
+			targetProxy = 155AC8F2234839063839ADFC /* PBXContainerItemProxy */;
+		};
+/* End PBXTargetDependency section */
+
 /* Begin XCBuildConfiguration section */
 		543EC2ADC2DDBE61E4F6F802 /* Debug */ = {
 			isa = XCBuildConfiguration;
@@ -167,6 +312,7 @@
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				CODE_SIGN_IDENTITY = "iPhone Developer";
 				CODE_SIGN_STYLE = Automatic;
+				DEAD_CODE_STRIPPING = NO;
 				ENABLE_USER_SCRIPT_SANDBOXING = YES;
 				INFOPLIST_FILE = App/Info.plist;
 				LD_RUNPATH_SEARCH_PATHS = (
@@ -246,6 +392,65 @@
 				SWIFT_ACTIVE_COMPILATION_CONDITIONS = DEBUG;
 				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
 				SWIFT_VERSION = 6.0;
+			};
+			name = Debug;
+		};
+		6B3F976D622E9B821D9A9B04 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				CODE_SIGN_STYLE = Automatic;
+				GENERATE_INFOPLIST_FILE = YES;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@loader_path/Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = com.kopalliaditya.tidykeep.uitests;
+				SDKROOT = iphoneos;
+				SWIFT_EMIT_LOC_STRINGS = NO;
+				TARGETED_DEVICE_FAMILY = 1;
+				TEST_TARGET_NAME = Tidykeep;
+			};
+			name = Release;
+		};
+		A7F6E135FF36086A3597B98B /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				CODE_SIGN_STYLE = Automatic;
+				GENERATE_INFOPLIST_FILE = YES;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@loader_path/Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = com.kopalliaditya.tidykeep.apptests;
+				SDKROOT = iphoneos;
+				SWIFT_EMIT_LOC_STRINGS = NO;
+				SWIFT_ENABLE_EXPLICIT_MODULES = NO;
+				TARGETED_DEVICE_FAMILY = 1;
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/Tidykeep.app/Tidykeep";
+			};
+			name = Release;
+		};
+		AE6AC108F38C87C376F089A9 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				CODE_SIGN_STYLE = Automatic;
+				GENERATE_INFOPLIST_FILE = YES;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@loader_path/Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = com.kopalliaditya.tidykeep.apptests;
+				SDKROOT = iphoneos;
+				SWIFT_EMIT_LOC_STRINGS = NO;
+				SWIFT_ENABLE_EXPLICIT_MODULES = NO;
+				TARGETED_DEVICE_FAMILY = 1;
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/Tidykeep.app/Tidykeep";
 			};
 			name = Debug;
 		};
@@ -331,14 +536,51 @@
 			};
 			name = Release;
 		};
+		E016D984BC366D8AE2C9445B /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				CODE_SIGN_STYLE = Automatic;
+				GENERATE_INFOPLIST_FILE = YES;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@loader_path/Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = com.kopalliaditya.tidykeep.uitests;
+				SDKROOT = iphoneos;
+				SWIFT_EMIT_LOC_STRINGS = NO;
+				TARGETED_DEVICE_FAMILY = 1;
+				TEST_TARGET_NAME = Tidykeep;
+			};
+			name = Debug;
+		};
 /* End XCBuildConfiguration section */
 
 /* Begin XCConfigurationList section */
+		1EDC2EC9EA855604F4DD74B6 /* Build configuration list for PBXNativeTarget "TidykeepUITests" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				E016D984BC366D8AE2C9445B /* Debug */,
+				6B3F976D622E9B821D9A9B04 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
 		8CA8348CD721C2C9EED091C1 /* Build configuration list for PBXProject "Tidykeep" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
 				5720A9572F5C097B457E3278 /* Debug */,
 				B2C489EE3A0BFE4E2195EFA8 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
+		93C5237E16C493C09E24BAC8 /* Build configuration list for PBXNativeTarget "TidykeepAppTests" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				AE6AC108F38C87C376F089A9 /* Debug */,
+				A7F6E135FF36086A3597B98B /* Release */,
 			);
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Debug;
@@ -362,9 +604,17 @@
 /* End XCLocalSwiftPackageReference section */
 
 /* Begin XCSwiftPackageProductDependency section */
+		2786CE7B2E77879474070E5E /* TidykeepContacts */ = {
+			isa = XCSwiftPackageProductDependency;
+			productName = TidykeepContacts;
+		};
 		546BA9ACFEB802966D2C5915 /* TidykeepUI */ = {
 			isa = XCSwiftPackageProductDependency;
 			productName = TidykeepUI;
+		};
+		965EBDDE0189CB62FC28263F /* TidykeepFiles */ = {
+			isa = XCSwiftPackageProductDependency;
+			productName = TidykeepFiles;
 		};
 		D8E3C103F17C29F3C71D272C /* TidykeepVision */ = {
 			isa = XCSwiftPackageProductDependency;

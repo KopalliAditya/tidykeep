@@ -30,7 +30,8 @@ the app, with the way to undo it, or a note that it can't be undone.
 **Why Tidykeep asks for access.** To find similar shots, copies of the same photo,
 screenshots and long videos, Tidykeep needs to look at the photos and videos in your library.
 If you give access to only some photos, it looks at only those. If you don't give access,
-the Photos part of the app stays off; Files and Contacts still work.
+the Photos part of the app stays off; Files and Contacts still work. You can change or turn
+off Photos access at any time in Settings > Apps > Tidykeep.
 
 **What it reads.** Each photo's pixels and details such as date, size in pixels, format,
 favorite status and albums. Photos and videos stored only in iCloud are skipped. Tidykeep
@@ -66,16 +67,20 @@ place.
 
 **Why Tidykeep asks for access.** Only if you open Duplicate Contacts. Tidykeep compares
 names, phone numbers and email addresses on this iPhone to find cards for the same person.
+You can turn off Contacts access at any time in Settings > Apps > Tidykeep.
 
 **Backup before every merge.** Before it merges cards, Tidykeep saves a backup of the cards
 involved (a vCard file) in its own storage on the iPhone. Undo uses this backup. iOS doesn't
 let Tidykeep read contact notes, so notes are not part of the backup, and Tidykeep asks you to
-confirm every merge for that reason. Cards are merged only within the same account.
+confirm every merge for that reason. Cards are merged only within the same account. A
+backup is kept as long as the History receipt of its merge, so Undo keeps working, and is
+deleted with that receipt: after a year, or sooner if you clear History.
 
 ## History and Rules
 
 **History receipts** record what changed: counts, dates, pixel sizes, file names and byte
-counts. They never contain images, and they stay in the app's own storage.
+counts. They never contain images, and they stay in the app's own storage. History keeps
+each receipt for one year, then deletes it.
 
 **Rules and settings** (what to always keep, what to look at, haptics) are saved as ordinary
 app preferences on the iPhone.
@@ -84,8 +89,13 @@ app preferences on the iPhone.
 
 Everything Tidykeep stores (the photo analysis, History receipts, contact backups, folder
 bookmarks and preferences) is kept in the app's own storage on your iPhone. You can clear the
-analysis and History at any time in Rules, under Saved Data. Deleting the app deletes all of
-it.
+analysis at any time in Rules, under Saved Data, and clear History there too, which also
+deletes the contact backups (and so the Undo) of past merges. Folder bookmarks are removed in
+Rules. Deleting the app deletes all of it.
+
+Turning off Photos or Contacts access in Settings > Apps > Tidykeep stops Tidykeep from
+reading them. What it has already stored stays until you clear it or delete the app, and it
+is never sent anywhere.
 
 If you back up your iPhone, the app's storage can be part of that backup, like any other
 app's. Tidykeep never reads or sends that backup.
