@@ -277,7 +277,7 @@ enum Copy {
             case .screenshot: "Screenshot of this photo"
             }
         }
-        static let explainer = "Keeps the copy with the most detail. Its favorite and albums move to it. Dates don't change."
+        static let explainer = "Keeps a favorite or edited copy, or else the one with the most detail, and adds it to the albums of the copies removed. Dates don't change."
         static let keeping = "Keeping this one"
         static let keepThisInstead = "Keep this copy instead"
         static func summary(sets: Int, extras: Int) -> String {
@@ -340,7 +340,7 @@ enum Copy {
         static func keptAll(_ n: Int) -> String { "Kept all \(n)." }
         static let nothingRemoved = "Nothing removed."
         static let nothingChanged = "Nothing changed."
-        static let mergeUndone = "Took back the favorite and albums. The removed copies are in Recently Deleted in Photos."
+        static let mergeUndone = "Took back the album changes. The removed copies are in Recently Deleted in Photos."
         static let reviewAgain = "It's back in the list."
         static let analysisCleared = "Saved analysis cleared. Checking your photos again."
         static let historyCleared = "History cleared."

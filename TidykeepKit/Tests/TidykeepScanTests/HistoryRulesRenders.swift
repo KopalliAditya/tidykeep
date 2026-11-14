@@ -309,11 +309,11 @@ enum HistoryDemo {
         #expect(Copy.Receipts.recoverySteps(photos, now: now).isEmpty)
         #expect(Copy.Receipts.status(photos, now: now) == "Gone from Recently Deleted")
 
-        // Past Recently Deleted, a merge's favorite and albums still come back with Undo changes.
+        // Past Recently Deleted, Undo changes can still take back a merge's album changes.
         let oldMerge = Receipt(kind: .copiesMerged, date: date, status: .done, requested: 2, completed: 2, deadline: now.addingTimeInterval(-1), payload: mergePayload(keeper: "k", deleted: ["a", "b"]))
         #expect(makeState().canUndo(oldMerge))
         #expect(Copy.Receipts.recoverySteps(oldMerge, now: now).last?.contains("Undo changes") == true)
-        #expect(Copy.Receipts.recoveryIntro(oldMerge, now: now).contains("favorite and albums can"))
+        #expect(Copy.Receipts.recoveryIntro(oldMerge, now: now).contains("album changes can still be undone"))
 
         let deleted = Receipt(kind: .filesDeleted, date: date, status: .done, requested: 2, completed: 2, bytes: 2_000_000)
         #expect(Copy.Receipts.recoverySteps(deleted, now: now).isEmpty)

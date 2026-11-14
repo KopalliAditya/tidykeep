@@ -1,6 +1,6 @@
 # Tidykeep Privacy Policy
 
-Last updated: November 13, 2026. Applies to Tidykeep 1.0 and later.
+Last updated: November 14, 2026. Applies to Tidykeep 1.0 and later.
 
 Tidykeep is made by Aditya Kopalli, an independent developer.
 
@@ -48,7 +48,8 @@ quality scores), so photos aren't analyzed twice. No copies of your photos are m
 iOS asks you to confirm again. Removed photos go to Recently Deleted in the Photos app, where
 you can recover them for 30 days. If iCloud Photos is on, a removed photo is also removed from
 your other devices, and a photo in a Shared Library is removed for everyone in it. When you
-merge copies, the favorite and albums of the copies are added to the photo you keep.
+merge copies, favorites and edited copies are never removed, and the photo you keep is added
+to the albums of the copies removed.
 
 ## Files
 
@@ -65,22 +66,27 @@ place.
 
 ## Contacts
 
-**Why Tidykeep asks for access.** Only if you open Duplicate Contacts. Tidykeep compares
-names, phone numbers and email addresses on this iPhone to find cards for the same person.
-You can turn off Contacts access at any time in Settings > Apps > Tidykeep.
+**Why Tidykeep asks for access.** To find cards for the same person, Tidykeep compares
+names, phone numbers and email addresses on this iPhone. It asks for access only when you tap
+Continue in Duplicate Contacts or under Contacts in Rules. You can turn off Contacts access at
+any time in Settings > Apps > Tidykeep.
 
 **Backup before every merge.** Before it merges cards, Tidykeep saves a backup of the cards
 involved (a vCard file) in its own storage on the iPhone. Undo uses this backup. iOS doesn't
 let Tidykeep read contact notes, so notes are not part of the backup, and Tidykeep asks you to
 confirm every merge for that reason. Cards are merged only within the same account. A
 backup is kept as long as the History receipt of its merge, so Undo keeps working, and is
-deleted with that receipt: after a year, or sooner if you clear History.
+deleted with that receipt: after a year, or sooner if you clear History. Delete backups,
+under Contacts in Rules, deletes them all at once; past merges can't be undone after that.
 
 ## History and Rules
 
 **History receipts** record what changed: counts, dates, pixel sizes, file names and byte
-counts. They never contain images, and they stay in the app's own storage. History keeps
-each receipt for one year, then deletes it.
+counts. A contact merge's receipt holds only the contact's name and the cards' IDs. The
+details of the merged cards are kept next to that merge's contact backup, not in History,
+and are deleted with it: by Delete backups, or when the receipt goes. Receipts never contain
+images, and they stay in the app's own storage. History keeps each receipt for one year,
+then deletes it.
 
 **Rules and settings** (what to always keep, what to look at, haptics) are saved as ordinary
 app preferences on the iPhone.
@@ -88,8 +94,9 @@ app preferences on the iPhone.
 ## Where your data lives, and how to delete it
 
 Everything Tidykeep stores (the photo analysis, History receipts, contact backups, folder
-bookmarks and preferences) is kept in the app's own storage on your iPhone. You can clear the
-analysis at any time in Rules, under Saved Data, and clear History there too, which also
+bookmarks, the list of files in Holding, photos you chose to keep, contact cards you chose to
+keep apart, and preferences) is kept in the app's own storage on your iPhone. You can clear
+the analysis at any time in Rules, under Saved Data, and clear History there too, which also
 deletes the contact backups (and so the Undo) of past merges. Folder bookmarks are removed in
 Rules. Deleting the app deletes all of it.
 
@@ -97,8 +104,10 @@ Turning off Photos or Contacts access in Settings > Apps > Tidykeep stops Tidyke
 reading them. What it has already stored stays until you clear it or delete the app, and it
 is never sent anywhere.
 
-If you back up your iPhone, the app's storage can be part of that backup, like any other
-app's. Tidykeep never reads or sends that backup.
+Tidykeep leaves its own data (the photo analysis, History receipts, contact backups, folder
+bookmarks, the Holding list and what you chose to keep) out of iPhone backups, so it isn't
+restored to a new iPhone. Only Rules and settings, saved as app preferences, are part of a
+backup. Tidykeep never reads or sends your iPhone backups.
 
 ## Children
 

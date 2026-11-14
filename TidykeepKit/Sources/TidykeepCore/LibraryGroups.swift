@@ -71,7 +71,7 @@ public struct LibraryGroups: Sendable, Equatable {
     /// Which copy to keep: true when `a` should be kept over `b`.
     ///
     /// - Protected (favorite or edited) first. Those are always kept anyway; this makes one of
-    ///   them the photo that favorites and albums are merged onto.
+    ///   them the photo that albums are merged onto.
     /// - Then not a screenshot: a screenshot of a photo can have more pixels than the photo.
     ///   Only Photos' mark counts here, not the screen shape, so a panorama original is never
     ///   sorted below its copies.

@@ -241,6 +241,29 @@ extension PhotoListsRenders {
         #expect(Copy.Copies.keepingOnly("a", in: group, removing: 0) == "Keeping copy 1 of 3. Nothing to remove.")
     }
 
+    /// "After merging, the kept copy is in …" names only albums it will be in: its own, and
+    /// those of the copies removed. "b" is in an album the kept copy can't join, so the merge
+    /// keeps "b" and that album isn't named; "d" is kept safe, so its album isn't joined.
+    @Test func afterMergeNamesOnlyAlbumsTheKeptCopyWillBeIn() async throws {
+        let source = MemoryPhotoSource(photos: [], albums: [
+            PhotoAlbum(id: "home", title: "Home", assetIDs: ["a"]),
+            PhotoAlbum(id: "kept", title: "Kept", assetIDs: ["d"]),
+            PhotoAlbum(id: "synced", title: "Synced", assetIDs: ["b"], canAddPhotos: false),
+            PhotoAlbum(id: "trip", title: "Trip", assetIDs: ["c"]),
+        ])
+        let state = try await Self.memoryState(source)
+        let photos = state.photos
+        let now = Date()
+        func copy(_ id: String, _ width: Int) -> (meta: AssetMeta, signals: FrameSignals) {
+            (AssetMeta(id: id, creationDate: now, pixelWidth: width, pixelHeight: width),
+             FrameSignals(embedding: QuantizedEmbedding([1, 0]), aesthetics: 0.5, isUtility: false, sharpness: 1, faceQualities: []))
+        }
+        let group = PhotoGroup(copies: [copy("a", 4_000), copy("b", 3_000), copy("c", 2_000), copy("d", 1_000)])
+            .applying(keptByRules: ["d"])
+        #expect(photos.albumTitles(for: group) == ["Home", "Trip"])
+        #expect(Copy.Copies.afterMerge(favorite: false, albums: photos.albumTitles(for: group)) == "After merging, the kept copy is in Home and Trip. Dates don't change.")
+    }
+
     @Test func copyTextIsPlain() {
         #expect(Copy.Videos.overMinimum(5, minimum: 60) == "5 videos over 1 minute")
         #expect(Copy.Videos.overMinimum(1, minimum: 300) == "1 video over 5 minutes")

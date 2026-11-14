@@ -4,8 +4,8 @@ import TidykeepCore
 // MARK: - Copies list
 
 /// Copy sets: the same picture saved more than once, however far apart. Each row shows the
-/// copy that stays and why the others can go. Merging keeps one copy, gives it the favorite
-/// and albums of the others, then removes them.
+/// copy that stays and why the others can go. Merging keeps one copy, adds it to the albums
+/// of the others, then removes them.
 struct CopiesView: View {
     @Environment(PhotosModel.self) private var photos
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
@@ -243,7 +243,7 @@ struct CopySetView: View {
                 KeeperHero(meta: keeper, format: photos.formats[keeper.id])
                 ReasonCard(reason: reason(group))
                 members(group, keeper: keeper)
-                Text(Copy.Copies.afterMerge(favorite: group.members.contains(where: \.isFavorite), albums: photos.albumTitles(for: group)))
+                Text(Copy.Copies.afterMerge(favorite: keeper.isFavorite, albums: photos.albumTitles(for: group)))
                     .font(.footnote)
                     .foregroundStyle(Palette.secondaryText)
                     .fixedSize(horizontal: false, vertical: true)

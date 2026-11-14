@@ -26,7 +26,7 @@ extension Copy.Receipts {
     /// What the action does, for VoiceOver.
     static func actionHint(_ kind: Receipt.Kind) -> String {
         switch kind {
-        case .copiesMerged: "Takes the favorite and albums back off the kept photo."
+        case .copiesMerged: "Takes the kept photo back out of the albums it was added to."
         case .keptAll: "Puts it back in the list to look at again."
         case .filesHeld: "Moves the files back where they were."
         case .contactsMerged: "Restores the cards from the backup."
@@ -150,9 +150,9 @@ extension Copy.Receipts {
             return Copy.Reason.cantBeUndone
         case .copiesMerged:
             if let deadline = r.deadline, deadline > now {
-                return "Undo changes takes the favorite and albums back. Recover the removed copies in the Photos app."
+                return "Undo changes takes the kept photo out of the albums it was added to. Recover the removed copies in the Photos app."
             }
-            return "Undo changes takes the favorite and albums back. The removed copies are gone from Recently Deleted."
+            return "Undo changes takes the kept photo out of the albums it was added to. The removed copies are gone from Recently Deleted."
         case .keptAll: return "Review again puts it back in the list."
         case .filesHeld: return "Put back moves the files where they were."
         case .filesPutBack: return "Nothing to undo. The files are back where they were."
@@ -181,7 +181,7 @@ extension Copy.Receipts {
             return "Photos keeps them in Recently Deleted for \(days), then deletes them for good."
         case .copiesMerged:
             guard let deadline = r.deadline, deadline > now else {
-                return "The removed copies are past their \(days) in Recently Deleted, so they can't be brought back. The favorite and albums can."
+                return "The removed copies are past their \(days) in Recently Deleted, so they can't be brought back. The album changes can still be undone."
             }
             return "Photos keeps the removed copies in Recently Deleted for \(days), then deletes them for good."
         case .keptAll: return "Nothing was removed. The group just isn't suggested again."
@@ -197,9 +197,9 @@ extension Copy.Receipts {
         guard r.status == .done || r.status == .partial else { return [] }
         switch r.kind {
         case .photosRemoved, .screenshotsRemoved, .videosRemoved, .copiesMerged:
-            let undoChanges = "To take the favorite and albums back off the kept photo, tap Undo changes below."
+            let undoChanges = "To take the kept photo back out of the albums it was added to, tap Undo changes below."
             guard let deadline = r.deadline, deadline > now else {
-                // The copies are gone for good, but the favorite and albums can still come back.
+                // The copies are gone for good, but the album changes can still be undone.
                 return r.kind == .copiesMerged ? [undoChanges] : []
             }
             var steps = [

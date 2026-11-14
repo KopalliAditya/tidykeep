@@ -50,14 +50,14 @@ Can be changed at any time without a new build.
 Find similar shots, copies, old screenshots, duplicate files and contacts. Review every change first; History keeps a receipt for each one. Nothing leaves your iPhone.
 ```
 
-### Description (2,400 characters)
+### Description (2,431 characters)
 
 ```text
 Tidykeep helps you tidy the photos, files and contacts on your iPhone, one decision at a time. It finds what's worth a look, tells you why, and changes nothing until you confirm. Everything happens on your iPhone.
 
 PHOTOS
 • Similar Shots: runs of near-identical photos, like a burst or five tries at the same picture. Tidykeep suggests the best one in each group and says why, for example "sharpest and best faces".
-• Copies: the same photo saved more than once: resized, saved in another format, or as a screenshot. The copy with the most detail stays, and the favorite and albums of the others move to it.
+• Copies: the same photo saved more than once: resized, saved in another format, or as a screenshot. A favorite or edited copy is always the one kept; otherwise the copy with the most detail stays. It's added to the albums of the copies removed.
 • Screenshots: look back through old screenshots by month and mark the ones you're done with.
 • Big Videos: videos over a minute, with their length and resolution.
 
@@ -144,8 +144,11 @@ In App Privacy, answer **"No, we do not collect data from this app"**. That give
 "Data Not Collected". It's true because:
 
 - Apple counts data as collected when it leaves the device. Tidykeep has no network code at
-  all (`scripts/check-no-network.sh` fails the build check on any network API, web view, share
-  sheet, URL with a scheme or third-party package), so nothing can leave.
+  all, so nothing can leave. `scripts/check-no-network.sh` fails the build check on network
+  APIs (URLSession, Network.framework, CFNetwork, Bonjour and NetService, LinkPresentation,
+  MapKit, CloudKit, the iCloud key-value store, Multipeer); web views; share sheets and mail
+  compose; `Link`, `openURL` and opening URLs other than Settings; URLs with a scheme; and
+  third-party packages in `Package.swift`, `project.yml` or the Xcode project.
 - There are no third-party SDKs, analytics, crash reporting, ads or account.
 - The photo analysis, History receipts, vCard backups, folder bookmarks and preferences stay in
   the app's own container on the iPhone, and deleting the app deletes them.
@@ -192,7 +195,7 @@ asked, answer that the app doesn't use encryption.
 | Contact | Aditya Kopalli, the owner's phone, the real support email |
 | Attachment | None needed |
 
-### Notes (3,286 characters)
+### Notes (3,383 characters)
 
 ```text
 Tidykeep needs no account, sign-in or network connection. It contains no network code, works in Airplane Mode, and does all its work on the device.
@@ -210,7 +213,7 @@ To see each feature on a fresh device:
 5. History and Rules. Every change writes a receipt in the History tab, with the way back where there is one, or a note that it can't be undone. The Rules tab holds what is always kept. Rules > About shows the privacy policy and acknowledgements inside the app.
 
 Notes:
-- Photos access is requested on first launch, after a one-screen introduction whose button reads "Continue". Contacts access is requested only when the user opens Duplicate Contacts. Files are read only in folders the user picks. If any access is denied, the rest of the app still works.
+- Photos access is requested on first launch, after a one-screen introduction whose button reads "Continue". Contacts access is requested only when the user taps Continue in Duplicate Contacts or under Contacts in Rules. Files are read only in folders the user picks. If any access is denied, the rest of the app still works.
 - To prefer a photo where nobody blinked, the app uses Vision's face capture quality score on the device. It doesn't recognize or identify people and doesn't store face images or face geometry.
 - Photo similarity uses a bundled Core ML model (DINOv2, Apache License 2.0) that runs on the device.
 - Nothing is deleted without a confirmation. Photos go through the system confirmation to Recently Deleted. Files are deleted permanently only from Holding, after a confirmation. Contact merges can be undone from History.
@@ -248,7 +251,7 @@ No iPad set is needed because the app is iPhone only.
 | 1 | Tidy home: coverage line, Photos cards, Files and Contacts rows | `01-home` | first screen after the photo check | Photos, files and contacts, tidied on your iPhone |
 | 2 | A Similar Shots group: pager on the best pick, Why line, Keep / Remove picker | `03-group` | `home.card.similar`, then `similar.row.0` | See the best shot, and why it was picked |
 | 3 | Review sheet "Remove 9 photos?": Removing / Staying, Reason card | `04-review` | `actionbar.primary` in that group | Nothing changes until you confirm |
-| 4 | A Copies set: the keeper, copy rows (pixels, format, date), what merges onto it | `05-copies` | `home.card.copies`, then `copies.row.0` | Copies merge onto the one with the most detail |
+| 4 | A Copies set: the keeper, copy rows (pixels, format, date), what merges onto it | `05-copies` | `home.card.copies`, then `copies.row.0` | Copies merge onto the one you keep |
 | 5 | A Duplicate Files set: "Same file, byte for byte.", exact sizes | `06-files` | `home.row.dupfiles`, then `dupfiles.row.0` (sample folder) | Find files that match byte for byte |
 | 6 | Contact merge preview with the source of each detail | `08-contacts-merge` | `home.row.contacts`, then `contacts.row.0` (made-up cards) | Merge duplicate contacts, with a backup first |
 | 7 | History: receipts by day | `09-history` | `tab.history` | Every change leaves a receipt |
@@ -336,14 +339,15 @@ build. These paths can't run on the simulator or in CI:
       downloaded (turn on Optimize iPhone Storage to try).
 - [ ] Remove: the system confirmation appears and photos land in Recently Deleted. Cancel
       shows "Nothing removed."
-- [ ] Copies: the favorite and albums move onto the kept copy.
+- [ ] Copies: a favorite or edited copy is the one kept, and the kept copy joins the albums of
+      the copies removed.
 - [ ] The review notes' Copies path: a photo duplicated in Photos, with the duplicate's date
       moved a day earlier, shows up under Copies, not Similar Shots. If it doesn't, change
       step 1 of the notes before submitting.
 - [ ] The review notes' Files path with brand-new files: first turn off "Files changed in the
       last 7 days" in Rules, or Duplicate Files and Large Files show nothing.
-- [ ] Contacts: the Contacts prompt appears with its purpose string (and the app doesn't
-      quit) when Duplicate Contacts is opened for the first time.
+- [ ] Contacts: tapping Continue in Duplicate Contacts, or under Contacts in Rules, shows the
+      Contacts prompt with its purpose string, and the app doesn't quit.
 - [ ] Files: a folder in On My iPhone and one in iCloud Drive. Move to Holding is instant (a
       rename), "Held by Tidykeep" appears in the folder, Put back and Empty work, and the
       held folder isn't offered as duplicates on the next check.
