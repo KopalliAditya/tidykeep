@@ -89,7 +89,7 @@ struct ScreenshotsView: View {
                 if shown.isEmpty {
                     Text(Copy.Screenshots.noneInFilter)
                         .font(.subheadline)
-                        .foregroundStyle(.secondary)
+                        .foregroundStyle(Palette.secondaryText)
                         .frame(maxWidth: .infinity)
                         .padding(.vertical, Space.xxl)
                 }
@@ -107,7 +107,7 @@ struct ScreenshotsView: View {
                 }
                 Text(Copy.Screenshots.keptSafeFooter(albums: preferences.rules.keepScreenshotsInAlbums))
                     .font(.footnote)
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(Palette.secondaryText)
                     .fixedSize(horizontal: false, vertical: true)
                     .padding(.horizontal, Space.l)
                     .padding(.top, Space.s)
@@ -129,13 +129,13 @@ struct ScreenshotsView: View {
             if hiddenMarkedCount > 0 {
                 Text(Copy.Screenshots.hiddenMarked(hiddenMarkedCount))
                     .font(.footnote)
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(Palette.secondaryText)
                     .fixedSize(horizontal: false, vertical: true)
             }
             if isSelecting {
                 Text(Copy.Screenshots.selectHint)
                     .font(.footnote)
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(Palette.secondaryText)
                     .transition(.opacity)
             }
         }

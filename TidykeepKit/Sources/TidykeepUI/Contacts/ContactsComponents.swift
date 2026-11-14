@@ -27,9 +27,16 @@ struct ContactMonogram: View {
                         .font(.system(size: side * 0.45))
                         .foregroundStyle(Palette.accent)
                 } else {
+                    // A text style, so the letters follow Dynamic Type; they shrink to fit the circle,
+                    // which grows with it up to its cap.
                     Text(initials)
-                        .font(.system(size: side * 0.38, weight: .semibold, design: .rounded))
+                        .font(size >= 48 ? .title3 : .subheadline)
+                        .fontWeight(.semibold)
+                        .fontDesign(.rounded)
                         .foregroundStyle(Palette.accent)
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.4)
+                        .padding(side * 0.14)
                 }
             }
             .accessibilityHidden(true)
@@ -57,7 +64,7 @@ struct ContactsIntroView: View {
                         .accessibilityAddTraits(.isHeader)
                     Text(Copy.Contacts.introDetail)
                         .font(.body)
-                        .foregroundStyle(.secondary)
+                        .foregroundStyle(Palette.secondaryText)
                         .fixedSize(horizontal: false, vertical: true)
                 }
                 VStack(alignment: .leading, spacing: Space.xl) {
@@ -154,11 +161,11 @@ struct ContactGroupRow: View {
                     .foregroundStyle(.primary)
                 Text(Copy.cards(cardCount) + " · " + Copy.Contacts.reasons(reasons))
                     .font(.subheadline)
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(Palette.secondaryText)
                 if !accounts.isEmpty {
                     Text(Copy.Contacts.accounts(accounts))
                         .font(.footnote)
-                        .foregroundStyle(.secondary)
+                        .foregroundStyle(Palette.secondaryText)
                 }
             }
             .fixedSize(horizontal: false, vertical: true)
@@ -166,7 +173,7 @@ struct ContactGroupRow: View {
             if !mergeable {
                 Text(Copy.Contacts.notMergeable)
                     .font(.caption.weight(.semibold))
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(Palette.secondaryText)
                     .padding(.horizontal, Space.s)
                     .padding(.vertical, Space.hair)
                     .background(Palette.fill, in: Capsule())
@@ -245,7 +252,7 @@ struct ContactFieldRow: View {
         VStack(alignment: .leading, spacing: Space.hair) {
             Text(line.label)
                 .font(.footnote)
-                .foregroundStyle(.secondary)
+                .foregroundStyle(Palette.secondaryText)
             Text(line.value)
                 .font(.body)
                 .fixedSize(horizontal: false, vertical: true)
@@ -340,7 +347,7 @@ struct MergeCardRow: View {
             HStack(alignment: .top, spacing: Space.m) {
                 Image(systemName: isKeeper ? "checkmark.circle.fill" : "circle")
                     .font(.title3)
-                    .foregroundStyle(isKeeper ? Palette.accent : Color.secondary)
+                    .foregroundStyle(isKeeper ? Palette.accent : Palette.secondaryText)
                     .accessibilityHidden(true)
                 VStack(alignment: .leading, spacing: Space.xs) {
                     title
@@ -350,13 +357,13 @@ struct MergeCardRow: View {
                     ForEach(lines) { line in
                         Text(line.label + "  " + line.value)
                             .font(.subheadline)
-                            .foregroundStyle(.secondary)
+                            .foregroundStyle(Palette.secondaryText)
                             .fixedSize(horizontal: false, vertical: true)
                     }
                     if card.hasImage {
                         Text(Copy.Contacts.hasPhoto)
                             .font(.subheadline)
-                            .foregroundStyle(.secondary)
+                            .foregroundStyle(Palette.secondaryText)
                     }
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
@@ -385,7 +392,7 @@ struct MergeCardRow: View {
             if !card.containerName.isEmpty {
                 Text(card.containerName)
                     .font(.subheadline)
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(Palette.secondaryText)
             }
             if !typeSize.isAccessibilitySize { Spacer(minLength: Space.s) }
             Text(isKeeper ? Copy.Contacts.stays : Copy.Contacts.goes)

@@ -63,7 +63,7 @@ struct DuplicateContactsView: View {
                         ProgressView()
                         Text(Copy.Contacts.checking)
                             .font(.subheadline)
-                            .foregroundStyle(.secondary)
+                            .foregroundStyle(Palette.secondaryText)
                     }
                     .padding(.top, Space.xxl)
                     .frame(maxWidth: .infinity)
@@ -76,7 +76,7 @@ struct DuplicateContactsView: View {
                         VStack(spacing: Space.s) {
                             Text(Copy.Contacts.limited(contacts.checkedCount))
                                 .font(.footnote)
-                                .foregroundStyle(.secondary)
+                                .foregroundStyle(Palette.secondaryText)
                                 .multilineTextAlignment(.center)
                             ShareMoreContactsButton()
                         }
@@ -149,7 +149,7 @@ private struct ContactGroupList: View {
             if contacts.isLimited {
                 Text(Copy.Contacts.limited(contacts.checkedCount))
                     .font(.footnote)
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(Palette.secondaryText)
             }
         }
         .accessibilityElement(children: .combine)

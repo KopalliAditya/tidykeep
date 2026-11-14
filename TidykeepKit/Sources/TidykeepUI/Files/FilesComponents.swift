@@ -122,7 +122,7 @@ struct FilesStatusHeader: View {
                             .monospacedDigit()
                         Image(systemName: "info.circle")
                             .font(.footnote)
-                            .foregroundStyle(.secondary)
+                            .foregroundStyle(Palette.secondaryText)
                             .accessibilityHidden(true)
                     }
                     .frame(minHeight: 44)
@@ -195,7 +195,7 @@ struct FilesCoverageSheet: View {
             .font(.body.weight(.medium))
             Text(detail)
                 .font(.footnote)
-                .foregroundStyle(.secondary)
+                .foregroundStyle(Palette.secondaryText)
                 .fixedSize(horizontal: false, vertical: true)
         }
         .padding(.vertical, Space.hair)
@@ -223,7 +223,7 @@ struct NoFoldersView: View {
                     .accessibilityAddTraits(.isHeader)
                 Text(Copy.Files.noFoldersDetail)
                     .font(.subheadline)
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(Palette.secondaryText)
                     .multilineTextAlignment(.center)
                     .fixedSize(horizontal: false, vertical: true)
             }
@@ -275,11 +275,11 @@ struct FileDetails: View {
                 .fixedSize(horizontal: false, vertical: true)
             Text(location)
                 .font(.footnote)
-                .foregroundStyle(.secondary)
+                .foregroundStyle(Palette.secondaryText)
                 .fixedSize(horizontal: false, vertical: true)
             Text("\(Copy.bytes(bytes)) · \(date)")
                 .font(.footnote)
-                .foregroundStyle(.secondary)
+                .foregroundStyle(Palette.secondaryText)
                 .monospacedDigit()
                 .fixedSize(horizontal: false, vertical: true)
             if let badge {

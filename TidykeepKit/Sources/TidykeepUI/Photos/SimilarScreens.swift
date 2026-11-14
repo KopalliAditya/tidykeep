@@ -75,7 +75,7 @@ struct SimilarShotsView: View {
                         Image(systemName: "checkmark.seal")
                             .foregroundStyle(Palette.accent)
                         Text(coverageLine)
-                            .foregroundStyle(.secondary)
+                            .foregroundStyle(Palette.secondaryText)
                             .contentTransition(.numericText())
                         Image(systemName: "info.circle")
                             .font(.footnote)
@@ -147,7 +147,7 @@ struct SimilarShotsView: View {
         VStack(spacing: Space.l) {
             Text(text)
                 .font(.subheadline)
-                .foregroundStyle(.secondary)
+                .foregroundStyle(Palette.secondaryText)
                 .multilineTextAlignment(.center)
                 .fixedSize(horizontal: false, vertical: true)
                 .accessibilityFocused($focus, equals: .empty)
@@ -183,6 +183,7 @@ struct SimilarShotsView: View {
                 } header: {
                     if let title = section.title {
                         Text(title)
+                            .foregroundStyle(Palette.secondaryText)
                             .accessibilityAddTraits(.isHeader)
                     }
                 }
@@ -344,10 +345,10 @@ private struct SimilarGroupRow: View {
                     .foregroundStyle(.primary)
                 Text(Copy.Similar.rowDate(group.startDate))
                     .font(.subheadline)
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(Palette.secondaryText)
                 Text(Copy.Similar.keepRemove(kept: kept, removing: removing))
                     .font(.subheadline)
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(Palette.secondaryText)
                     .monospacedDigit()
                     .contentTransition(.numericText())
                 if group.ranking.isCloseCall || keptSafe > 0 {
@@ -378,12 +379,12 @@ private struct SimilarGroupRow: View {
                 Label {
                     Text(Copy.Similar.keptSafeCount(keptSafe))
                 } icon: {
-                    Image(systemName: "lock.fill").foregroundStyle(.secondary)
+                    Image(systemName: "lock.fill").foregroundStyle(Palette.secondaryText)
                 }
             }
         }
         .font(.footnote.weight(.medium))
-        .foregroundStyle(.secondary)
+        .foregroundStyle(Palette.secondaryText)
         .labelStyle(SimilarCompactLabelStyle())
     }
 }

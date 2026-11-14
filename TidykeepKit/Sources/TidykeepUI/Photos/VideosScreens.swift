@@ -87,7 +87,7 @@ struct BigVideosView: View {
             Section {
                 Text(Copy.Videos.footer(kept: photos.ledger.keptVideoIDs.count))
                     .font(.footnote)
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(Palette.secondaryText)
                     .photoListNote()
             }
         }
@@ -171,12 +171,12 @@ private struct VideoRow: View {
                         .font(.body.weight(.semibold))
                     Text(Copy.Videos.quality(meta))
                         .font(.subheadline)
-                        .foregroundStyle(.secondary)
+                        .foregroundStyle(Palette.secondaryText)
                         .monospacedDigit()
                     if meta.isFavorite {
                         Label(Copy.General.favorite, systemImage: "heart.fill")
                             .font(.footnote)
-                            .foregroundStyle(.secondary)
+                            .foregroundStyle(Palette.secondaryText)
                     }
                 }
                 .fixedSize(horizontal: false, vertical: true)
@@ -273,7 +273,7 @@ struct VideoDetailView: View {
                 facts(meta)
                 Text(Copy.Videos.removesEverywhere)
                     .font(.footnote)
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(Palette.secondaryText)
                     .fixedSize(horizontal: false, vertical: true)
                     .padding(.horizontal, Space.l)
             }
@@ -325,7 +325,7 @@ struct VideoDetailView: View {
                 if loaded {
                     Label(Copy.Videos.cantPlay, systemImage: "icloud")
                         .font(.subheadline)
-                        .foregroundStyle(.secondary)
+                        .foregroundStyle(Palette.secondaryText)
                         .fixedSize(horizontal: false, vertical: true)
                 }
             }
@@ -379,7 +379,7 @@ private struct FactRow: View {
             } else {
                 Text(value)
                     .font(.body)
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(Palette.secondaryText)
                     .monospacedDigit()
                     .multilineTextAlignment(typeSize.isAccessibilitySize ? .leading : .trailing)
             }

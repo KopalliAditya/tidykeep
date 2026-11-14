@@ -59,7 +59,7 @@ struct HistoryView: View {
                 }
                 Text(Copy.Receipts.footer)
                     .font(.footnote)
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(Palette.secondaryText)
                     .multilineTextAlignment(.center)
                     .frame(maxWidth: .infinity)
                     .padding(.horizontal, Space.l)
@@ -175,7 +175,7 @@ struct HistoryRow: View {
             VStack(alignment: .leading, spacing: Space.xs) {
                 Text(Copy.Receipts.sentence(receipt))
                     .font(.body)
-                    .foregroundStyle(receipt.status == .undone ? .secondary : .primary)
+                    .foregroundStyle(receipt.status == .undone ? Palette.secondaryText : Color.primary)
                     .fixedSize(horizontal: false, vertical: true)
                     .allowsHitTesting(false)
                     .accessibilityHidden(true)
@@ -183,7 +183,7 @@ struct HistoryRow: View {
                 // text on a white card is too faint to read.
                 Text(Copy.Receipts.rowStatus(receipt, now: now))
                     .font(.footnote.monospacedDigit())
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(Palette.secondaryText)
                     .fixedSize(horizontal: false, vertical: true)
                     .allowsHitTesting(false)
                     .accessibilityHidden(true)
@@ -290,7 +290,7 @@ struct ReceiptSymbol: View {
         switch receipt.status {
         case .done, .partial: Palette.accent
         case .failed: .orange
-        case .undone, .inProgress: .secondary
+        case .undone, .inProgress: Palette.secondaryText
         }
     }
 }
@@ -352,7 +352,7 @@ struct ReceiptView: View {
                     .accessibilityAddTraits(.isHeader)
                 Text(Copy.Receipts.status(receipt, now: now))
                     .font(.subheadline.monospacedDigit())
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(Palette.secondaryText)
                     .fixedSize(horizontal: false, vertical: true)
             }
         }
@@ -407,16 +407,16 @@ private struct ReceiptSummaryCard: View {
     var body: some View {
         VStack(alignment: .leading, spacing: Space.m) {
             line(Copy.Receipts.what, symbol: "text.magnifyingglass", text: Copy.Receipts.whatHappened(receipt.kind))
-            line(Copy.Receipts.when, symbol: "calendar", text: Copy.dayAndTime(receipt.date), tint: .secondary)
-            line(Copy.Receipts.howMany, symbol: "number", text: Copy.Receipts.howManyValue(receipt), tint: .secondary)
+            line(Copy.Receipts.when, symbol: "calendar", text: Copy.dayAndTime(receipt.date), tint: Palette.secondaryText)
+            line(Copy.Receipts.howMany, symbol: "number", text: Copy.Receipts.howManyValue(receipt), tint: Palette.secondaryText)
             if let size = Copy.Receipts.sizeLine(receipt) {
-                line(Copy.Receipts.size, symbol: "internaldrive", text: size, tint: .secondary)
+                line(Copy.Receipts.size, symbol: "internaldrive", text: size, tint: Palette.secondaryText)
             }
             if let names = Copy.Receipts.fileNameList(receipt) {
-                line(Copy.Receipts.fileNames, symbol: "doc", text: names, tint: .secondary)
+                line(Copy.Receipts.fileNames, symbol: "doc", text: names, tint: Palette.secondaryText)
             }
             if receipt.kind == .contactsMerged, let title = receipt.title {
-                line(Copy.Receipts.keptCard, symbol: "person.crop.circle", text: title, tint: .secondary)
+                line(Copy.Receipts.keptCard, symbol: "person.crop.circle", text: title, tint: Palette.secondaryText)
             }
             line(Copy.Receipts.undoHeading, symbol: "arrow.uturn.backward", text: Copy.Receipts.undoLine(receipt, now: now))
         }
@@ -437,7 +437,7 @@ private struct ReceiptSummaryCard: View {
                 Text(title).font(.subheadline.weight(.semibold))
                 Text(text)
                     .font(.subheadline.monospacedDigit())
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(Palette.secondaryText)
                     .fixedSize(horizontal: false, vertical: true)
             }
         }

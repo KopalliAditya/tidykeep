@@ -15,7 +15,7 @@ struct FoldersSection: View {
         Section {
             if files.folders.isEmpty {
                 Text(Copy.Files.noFoldersYet)
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(Palette.secondaryText)
                     .frame(minHeight: 44)
             }
             ForEach(Array(files.folders.enumerated()), id: \.element.id) { index, folder in
@@ -89,7 +89,7 @@ private struct FolderRow: View {
                     .fixedSize(horizontal: false, vertical: true)
                 Text(folder.isAvailable ? Copy.Files.available : Copy.Files.unavailable)
                     .font(.footnote)
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(Palette.secondaryText)
                     .fixedSize(horizontal: false, vertical: true)
             }
             Spacer(minLength: 0)

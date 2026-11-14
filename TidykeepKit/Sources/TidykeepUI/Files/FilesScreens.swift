@@ -119,14 +119,14 @@ private struct DuplicateSetRow: View {
                         .fixedSize(horizontal: false, vertical: true)
                     Text("\(Copy.Files.setTitle(group.items.count)) · \(files.location(of: group.keeper))")
                         .font(.footnote)
-                        .foregroundStyle(.secondary)
+                        .foregroundStyle(Palette.secondaryText)
                         .fixedSize(horizontal: false, vertical: true)
                 }
             }
             Spacer(minLength: 0)
             Text(Copy.bytes(group.extraBytes))
                 .font(.subheadline.weight(.medium))
-                .foregroundStyle(.secondary)
+                .foregroundStyle(Palette.secondaryText)
                 .monospacedDigit()
         }
         .padding(.vertical, Space.xs)
@@ -188,7 +188,7 @@ struct DuplicateFileSetView: View {
                         .accessibilityAddTraits(.isHeader)
                     Text(Copy.Files.setLine(name: group.keeper.name, bytes: group.keeper.bytes))
                         .font(.subheadline)
-                        .foregroundStyle(.secondary)
+                        .foregroundStyle(Palette.secondaryText)
                         .fixedSize(horizontal: false, vertical: true)
                 }
                 .padding(.horizontal, Space.xs)
@@ -381,7 +381,7 @@ struct LargeFilesView: View {
                 HStack(spacing: Space.m) {
                     Image(systemName: selected ? "checkmark.circle.fill" : "circle")
                         .font(.title3)
-                        .foregroundStyle(selected ? Palette.accent : Color.secondary)
+                        .foregroundStyle(selected ? Palette.accent : Palette.secondaryText)
                         .accessibilityHidden(true)
                     FileTile(name: item.name)
                     VStack(alignment: .leading, spacing: Space.hair) {
@@ -391,7 +391,7 @@ struct LargeFilesView: View {
                             .fixedSize(horizontal: false, vertical: true)
                         Text("\(location) · \(Copy.Files.changed(item.modified))")
                             .font(.footnote)
-                            .foregroundStyle(.secondary)
+                            .foregroundStyle(Palette.secondaryText)
                             .fixedSize(horizontal: false, vertical: true)
                     }
                 }
@@ -402,7 +402,7 @@ struct LargeFilesView: View {
                         .foregroundStyle(.primary)
                     Text(Copy.Files.exactBytes(item.bytes))
                         .font(.caption)
-                        .foregroundStyle(.secondary)
+                        .foregroundStyle(Palette.secondaryText)
                 }
                 .monospacedDigit()
             }
@@ -502,7 +502,7 @@ struct HoldingView: View {
                             .monospacedDigit()
                         Text(Copy.Files.holdingExplainer)
                             .font(.subheadline)
-                            .foregroundStyle(.secondary)
+                            .foregroundStyle(Palette.secondaryText)
                             .fixedSize(horizontal: false, vertical: true)
                     }
                     .padding(.vertical, Space.xs)
@@ -654,7 +654,7 @@ private struct HoldingEmptyView: View {
                 .multilineTextAlignment(.center)
             Text(Copy.Files.holdingEmptyDetail)
                 .font(.subheadline)
-                .foregroundStyle(.secondary)
+                .foregroundStyle(Palette.secondaryText)
                 .multilineTextAlignment(.center)
                 .fixedSize(horizontal: false, vertical: true)
         }

@@ -57,7 +57,7 @@ struct OnboardingView: View {
                 .accessibilityIdentifier("onboarding.continue")
                 Text("Free. No purchases, ads, tips or subscriptions.")
                     .font(.footnote)
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(Palette.secondaryText)
             }
             .padding(.horizontal, Space.xl)
             .padding(.bottom, Space.m)

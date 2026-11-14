@@ -10,6 +10,10 @@ extension Copy.Similar {
     static let remove = "Remove"
     static let markForRemoval = "Mark for removal"
     static let keepOnlyThisOne = "Keep only this one"
+    /// Said once "Keep only this" would change nothing. Photos that are always kept stay too.
+    static func keptOnlyThis(alsoAlwaysKept n: Int) -> String {
+        n == 0 ? "Only this one is kept" : "Only this one is kept, plus \(Copy.photos(n)) that are always kept"
+    }
     static func keepOnlyLabel(_ meta: AssetMeta, in group: PhotoGroup) -> String {
         "Keep only \(photoNumber(meta.id, in: group))"
     }

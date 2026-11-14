@@ -97,7 +97,7 @@ struct NoticeBanner: View {
             Button {
                 notices.dismiss(notice.id)
             } label: {
-                Image(systemName: "xmark").font(.footnote.weight(.semibold)).foregroundStyle(.secondary)
+                Image(systemName: "xmark").font(.footnote.weight(.semibold)).foregroundStyle(Palette.secondaryText)
             }
             .buttonStyle(.plain)
             .frame(minWidth: 44, minHeight: 44)

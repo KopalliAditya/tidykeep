@@ -26,10 +26,13 @@ enum Radius {
 /// The app's colours: system colours plus one accent, Ledger teal. The photos supply the rest.
 ///
 /// The accent is defined here as well as in the asset catalog so that previews rendered on a
-/// Mac and the app agree. Each colour has light, dark and Increased Contrast variants; the
-/// contrast ratios are in research/design.md.
+/// Mac and the app agree. Each colour has light, dark and Increased Contrast variants.
 enum Palette {
     static let accent = Color.dynamic(light: 0x0B6E78, dark: 0x5CC8D2, lightHigh: 0x05545E, darkHigh: 0x80D6DB)
+    /// Secondary text. iOS's own secondary label is 3.3:1 on the grouped background, under the
+    /// 4.5:1 small text needs. This grey is 5.6:1 or more on every background the app uses
+    /// for text in light mode, and 5.0:1 or more in dark mode.
+    static let secondaryText = Color.dynamic(light: 0x5E5E63, dark: 0xA1A1A8, lightHigh: 0x48484D, darkHigh: 0xC2C2C8)
     /// Text and symbols on an accent fill. White on the dark-mode teal is too faint, so dark
     /// mode uses a dark ink instead.
     static let onAccent = Color.dynamic(light: 0xFFFFFF, dark: 0x0A2A2E, lightHigh: 0xFFFFFF, darkHigh: 0x000000)

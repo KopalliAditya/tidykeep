@@ -59,15 +59,26 @@ struct RulesView: View {
                 }
             }
             Toggle(isOn: keepScreenshotsInAlbums) {
-                Label(Copy.Rules.screenshotsInAlbums, systemImage: "camera.viewfinder")
+                wrapping(Copy.Rules.screenshotsInAlbums, systemImage: "camera.viewfinder")
             }
             Toggle(isOn: hideRecentFiles) {
-                Label(Copy.Rules.recentFiles, systemImage: "doc.badge.clock")
+                wrapping(Copy.Rules.recentFiles, systemImage: "doc.badge.clock")
             }
         } header: {
             Text(Copy.Rules.alwaysKeep)
         } footer: {
             Text(Copy.Rules.alwaysKeepFooter)
+        }
+    }
+
+    /// A toggle's label that wraps at large text sizes instead of being cut off beside the switch.
+    private func wrapping(_ title: String, systemImage: String) -> some View {
+        Label {
+            Text(title)
+                .lineLimit(nil)
+                .fixedSize(horizontal: false, vertical: true)
+        } icon: {
+            Image(systemName: systemImage)
         }
     }
 
@@ -154,7 +165,7 @@ struct RulesView: View {
                 }
             Button(Copy.Rules.clearHistory, role: .destructive) { confirmsClear = true }
                 .rowButtonStyle()
-                .foregroundStyle(history.receipts.isEmpty ? Color.secondary : Palette.remove)
+                .foregroundStyle(history.receipts.isEmpty ? Palette.secondaryText : Palette.remove)
                 .disabled(history.receipts.isEmpty)
                 .confirmationDialog(Copy.Rules.clearTitle, isPresented: $confirmsClear, titleVisibility: .visible) {
                     Button(Copy.Rules.clearConfirm, role: .destructive) { state.clearHistory() }
@@ -260,7 +271,7 @@ private struct AlbumRow: View {
                         .foregroundStyle(.primary)
                     Text(Copy.photos(album.assetIDs.count))
                         .font(.footnote.monospacedDigit())
-                        .foregroundStyle(.secondary)
+                        .foregroundStyle(Palette.secondaryText)
                 }
                 Spacer(minLength: Space.s)
                 Image(systemName: "checkmark")
@@ -292,7 +303,7 @@ private struct AlbumRow: View {
                 .frame(width: side, height: side)
                 .overlay {
                     Image(systemName: "rectangle.stack")
-                        .foregroundStyle(.secondary)
+                        .foregroundStyle(Palette.secondaryText)
                 }
                 .accessibilityHidden(true)
         }
@@ -313,7 +324,7 @@ struct AboutView: View {
                     .listRowBackground(Color.clear)
             }
             bullets(Copy.About.privacy, Copy.About.privacyBullets, tint: Palette.accent)
-            bullets(Copy.About.cantDo, Copy.About.cantDoBullets, tint: .secondary)
+            bullets(Copy.About.cantDo, Copy.About.cantDoBullets, tint: Palette.secondaryText)
             Section {
                 NavigationLink(value: Route.privacyPolicy) {
                     Label(Copy.About.privacyPolicy, systemImage: "hand.raised")
@@ -363,7 +374,7 @@ struct AboutView: View {
             VStack(spacing: Space.xs) {
                 Text(Copy.About.tagline)
                     .font(.subheadline)
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(Palette.secondaryText)
                 Text(Copy.About.free)
                     .font(.subheadline.weight(.medium))
                     .padding(.top, Space.xs)

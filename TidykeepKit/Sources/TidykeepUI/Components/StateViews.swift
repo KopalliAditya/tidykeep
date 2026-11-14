@@ -17,7 +17,7 @@ struct AllTidyView: View {
             if let detail {
                 Text(detail)
                     .font(.subheadline)
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(Palette.secondaryText)
                     .multilineTextAlignment(.center)
             }
         }
@@ -47,7 +47,7 @@ struct AccessOffView: View {
             }
             Text(detail)
                 .font(.subheadline)
-                .foregroundStyle(.secondary)
+                .foregroundStyle(Palette.secondaryText)
                 .fixedSize(horizontal: false, vertical: true)
             if let ask {
                 Button(ask.title, action: ask.action)
@@ -112,7 +112,7 @@ struct ScanStatusView: View {
                     .tint(Palette.accent)
                 Text(Copy.Scan.keepOpen)
                     .font(.footnote)
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(Palette.secondaryText)
                     .fixedSize(horizontal: false, vertical: true)
             }
             .padding(Space.l)

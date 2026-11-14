@@ -28,9 +28,9 @@ struct CategoryCard: View {
                     if let count {
                         Text(count).foregroundStyle(.primary)
                     } else if isChecking {
-                        Text(Copy.Home.checking).foregroundStyle(.secondary)
+                        Text(Copy.Home.checking).foregroundStyle(Palette.secondaryText)
                     } else {
-                        Text(Copy.Home.noneFound).foregroundStyle(.secondary)
+                        Text(Copy.Home.noneFound).foregroundStyle(Palette.secondaryText)
                     }
                 }
                 .font(.subheadline.weight(.medium))
@@ -38,7 +38,7 @@ struct CategoryCard: View {
                 if let detail {
                     Text(detail)
                         .font(.footnote)
-                        .foregroundStyle(.secondary)
+                        .foregroundStyle(Palette.secondaryText)
                 }
             }
             .lineLimit(2)
@@ -73,14 +73,14 @@ struct CategoryRow: View {
             VStack(alignment: .leading, spacing: Space.hair) {
                 Text(title).font(.body.weight(.medium)).foregroundStyle(.primary)
                 if let detail {
-                    Text(detail).font(.footnote).foregroundStyle(.secondary)
+                    Text(detail).font(.footnote).foregroundStyle(Palette.secondaryText)
                 }
             }
             Spacer(minLength: Space.s)
             if let value {
                 Text(value)
                     .font(.subheadline.weight(.medium))
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(Palette.secondaryText)
                     .contentTransition(.numericText())
             }
             Image(systemName: "chevron.right")
@@ -110,7 +110,7 @@ struct CardSection<Content: View>: View {
             if let title {
                 Text(title)
                     .font(.footnote.weight(.semibold))
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(Palette.secondaryText)
                     .textCase(.uppercase)
                     .padding(.horizontal, Space.l)
                     .accessibilityAddTraits(.isHeader)
@@ -119,7 +119,7 @@ struct CardSection<Content: View>: View {
             if let footer {
                 Text(footer)
                     .font(.footnote)
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(Palette.secondaryText)
                     .padding(.horizontal, Space.l)
             }
         }

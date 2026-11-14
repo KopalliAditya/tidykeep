@@ -151,6 +151,7 @@ struct SimilarGroupView: View {
         .fixedSize(horizontal: false, vertical: true)
         .accessibilityElement(children: .ignore)
         .accessibilityLabel(Copy.Similar.whyThisOneSpoken(group))
+        .accessibilityAddTraits(.isStaticText)
     }
 
     // MARK: Decision
@@ -174,22 +175,33 @@ struct SimilarGroupView: View {
                 }
                 .labelStyle(SimilarCompactLabelStyle())
                 .font(.footnote)
-                .foregroundStyle(.secondary)
+                .foregroundStyle(Palette.secondaryText)
                 .fixedSize(horizontal: false, vertical: true)
             }
             if group.members.count > 2 {
-                Button {
-                    keepOnly(meta, in: group)
-                } label: {
-                    Label(Copy.Similar.keepOnlyThis, systemImage: "rosette")
+                // Once only this photo is kept, the button would do nothing, so it says so
+                // instead: a dimmed button is too faint to read.
+                if keepsOnly {
+                    let alsoKept = group.members.count { $0.id != meta.id && group.isProtected($0.id) }
+                    Label(Copy.Similar.keptOnlyThis(alsoAlwaysKept: alsoKept), systemImage: "checkmark")
                         .font(.subheadline.weight(.medium))
+                        .foregroundStyle(Palette.secondaryText)
+                        .fixedSize(horizontal: false, vertical: true)
                         .frame(minHeight: 44)
-                        .contentShape(Rectangle())
+                        .accessibilityElement(children: .combine)
+                } else {
+                    Button {
+                        keepOnly(meta, in: group)
+                    } label: {
+                        Label(Copy.Similar.keepOnlyThis, systemImage: "rosette")
+                            .font(.subheadline.weight(.medium))
+                            .frame(minHeight: 44)
+                            .contentShape(Rectangle())
+                    }
+                    .buttonStyle(.plain)
+                    .foregroundStyle(Palette.accent)
+                    .accessibilityLabel(Copy.Similar.keepOnlyLabel(meta, in: group))
                 }
-                .buttonStyle(.plain)
-                .foregroundStyle(keepsOnly ? Color.secondary : Palette.accent)
-                .disabled(keepsOnly)
-                .accessibilityLabel(Copy.Similar.keepOnlyLabel(meta, in: group))
             }
         }
     }
@@ -251,13 +263,13 @@ struct SimilarGroupView: View {
             HStack(alignment: .firstTextBaseline) {
                 Text(Copy.Similar.photosHeader)
                     .font(.footnote.weight(.semibold))
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(Palette.secondaryText)
                     .textCase(.uppercase)
                     .accessibilityAddTraits(.isHeader)
                 Spacer(minLength: Space.s)
                 Text(Copy.Similar.keepRemove(kept: group.members.count - removing, removing: removing))
                     .font(.footnote.weight(.medium))
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(Palette.secondaryText)
                     .monospacedDigit()
                     .contentTransition(.numericText())
             }
@@ -577,7 +589,7 @@ struct SimilarDecisionPicker: View {
                 .frame(maxWidth: .infinity, minHeight: 44, alignment: .leading)
         }
         .buttonStyle(.bordered)
-        .tint(selected ? Palette.accent : .secondary)
+        .tint(selected ? Palette.accent : Palette.secondaryText)
         .accessibilityAddTraits(selected ? .isSelected : [])
     }
 }
@@ -597,7 +609,7 @@ private struct SimilarGroupGone: View {
                 .multilineTextAlignment(.center)
             Text(Copy.Similar.goneDetail)
                 .font(.subheadline)
-                .foregroundStyle(.secondary)
+                .foregroundStyle(Palette.secondaryText)
                 .multilineTextAlignment(.center)
                 .fixedSize(horizontal: false, vertical: true)
             Button(Copy.Similar.backToList, action: back)

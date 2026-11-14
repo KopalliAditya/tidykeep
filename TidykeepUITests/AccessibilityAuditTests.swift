@@ -90,6 +90,7 @@ final class AccessibilityAuditTests: XCTestCase {
         // Let animations settle: a half-faded element reads as low contrast.
         RunLoop.current.run(until: Date().addingTimeInterval(1.0))
         let chrome = systemChrome(in: tidy.app)
+        let barTop = bottomBarTop(in: tidy.app)
         var found: [String] = []
         var ignored: [String] = []
 
@@ -97,7 +98,7 @@ final class AccessibilityAuditTests: XCTestCase {
         // failOnAppIssues() does, with the whole list.
         try tidy.app.performAccessibilityAudit(for: .all) { issue in
             let what = Self.describe(issue)
-            if let reason = Self.systemOwned(issue, chrome: chrome) {
+            if let reason = Self.systemOwned(issue, chrome: chrome, barTop: barTop) {
                 ignored.append("\(what) [ignored: \(reason)]")
             } else {
                 found.append(what)
@@ -134,6 +135,14 @@ final class AccessibilityAuditTests: XCTestCase {
         }
     }
 
+    /// The top of the app's bottom bar (its buttons and the padding above them), or nil when
+    /// the screen has none.
+    @MainActor
+    private func bottomBarTop(in app: XCUIApplication) -> CGFloat? {
+        let buttons = ["actionbar.primary", "actionbar.secondary"].map { app.buttons[$0] }.filter(\.exists)
+        return buttons.map(\.frame.minY).min().map { $0 - 8 }
+    }
+
     /// Why an issue is iOS's rather than the app's, or nil if it's the app's to fix.
     ///
     /// Only elements with no accessibility identifier can be iOS's: every control Tidykeep
@@ -143,21 +152,26 @@ final class AccessibilityAuditTests: XCTestCase {
     /// button, the large title, the tab bar's own buttons. The app can't change how those
     /// are drawn, so failing on them would only hide its own issues behind noise.
     ///
-    /// One narrower exception for the tab bar: its buttons carry Tidykeep's tab identifiers
-    /// but are drawn by iOS at a fixed size, using the Large Content Viewer instead of
-    /// Dynamic Type, which the audit reports as a Dynamic Type issue.
+    /// Two narrower exceptions cover elements with identifiers too. Bar buttons in the tab bar
+    /// and the navigation bar are drawn by iOS at a fixed size, using the Large Content Viewer
+    /// instead of Dynamic Type, which the audit reports as a Dynamic Type issue. And content
+    /// scrolled under the app's bottom bar is faded on purpose by iOS's scroll edge effect; it
+    /// can be scrolled up to be read. Only the bar's own buttons are audited there.
     ///
     /// An element that has gone by the time the issue is looked at counts as the app's: it
     /// can't be shown to be iOS's.
     @MainActor
-    private static func systemOwned(_ issue: XCUIAccessibilityAuditIssue, chrome: [CGRect]) -> String? {
+    private static func systemOwned(_ issue: XCUIAccessibilityAuditIssue, chrome: [CGRect], barTop: CGFloat?) -> String? {
         guard let element = issue.element else { return "no element: drawn outside the app's views" }
         guard element.exists else { return nil }
         let identifier = element.identifier
         let frame = element.frame
         let inChrome = chrome.contains { $0.contains(CGPoint(x: frame.midX, y: frame.midY)) }
-        if issue.auditType == .dynamicType && identifier.hasPrefix("tab.") && inChrome {
-            return "tab bar button, sized by iOS"
+        if issue.auditType == .dynamicType && inChrome {
+            return "bar button, sized by iOS"
+        }
+        if let barTop, frame.midY > barTop, !identifier.hasPrefix("actionbar.") {
+            return "scrolled under the bottom bar"
         }
         if identifier.isEmpty && inChrome {
             return "system bar or alert"

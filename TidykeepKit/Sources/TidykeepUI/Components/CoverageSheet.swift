@@ -25,7 +25,7 @@ struct CoverageSheet: View {
                             .font(.body.weight(.medium))
                             Text(Copy.Coverage.explanation(reason))
                                 .font(.footnote)
-                                .foregroundStyle(.secondary)
+                                .foregroundStyle(Palette.secondaryText)
                         }
                         .padding(.vertical, Space.hair)
                         .accessibilityElement(children: .combine)

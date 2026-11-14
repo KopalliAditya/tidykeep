@@ -10,6 +10,17 @@ import Vision
 @Suite struct VisionAnalyzerTests {
     let scene = SyntheticScene(seed: 11)
 
+    /// The iOS simulator runs stand-ins for Vision's models: the feature print is the same for
+    /// every picture and the utility check never fires. Tests of what those models see run on
+    /// a Mac (the package job) and on devices, where the real models are.
+    static let realVisionModels: Bool = {
+        #if targetEnvironment(simulator)
+        false
+        #else
+        true
+        #endif
+    }()
+
     @Test func featurePrintIsAUnitVectorOfTheExpectedSize() async throws {
         let signals = try await VisionFrameAnalyzer().analyze(scene.render())
         let values = signals.embedding.dequantized()
@@ -41,7 +52,8 @@ import Vision
 
     /// The reason for softening: a blurred frame of the same moment should land near the
     /// sharp one, so blur changes the pick but not the grouping.
-    @Test func softeningPullsBlurredFramesOfTheSameMomentTogether() async throws {
+    @Test(.enabled(if: VisionAnalyzerTests.realVisionModels, "The simulator's Vision models are stand-ins"))
+    func softeningPullsBlurredFramesOfTheSameMomentTogether() async throws {
         let sharp = scene.render(), blurred = scene.render(blur: 3)
         func distance(_ analyzer: VisionFrameAnalyzer) async throws -> Float {
             let a = try await analyzer.analyze(sharp), b = try await analyzer.analyze(blurred)
@@ -52,7 +64,8 @@ import Vision
         #expect(softened < raw, "raw \(raw), softened \(softened)")
     }
 
-    @Test func softeningStillSeparatesDifferentScenes() async throws {
+    @Test(.enabled(if: VisionAnalyzerTests.realVisionModels, "The simulator's Vision models are stand-ins"))
+    func softeningStillSeparatesDifferentScenes() async throws {
         let analyzer = VisionFrameAnalyzer()
         let a = try await analyzer.analyze(scene.render())
         let b = try await analyzer.analyze(scene.render(shift: CGPoint(x: 12, y: -8), blur: 2))
@@ -92,7 +105,8 @@ import Vision
     }
 
     /// Document pages are kept out of groups. This checks that Vision does flag a page of text.
-    @Test func aPageOfTextIsAUtilityPhoto() async throws {
+    @Test(.enabled(if: VisionAnalyzerTests.realVisionModels, "The simulator's Vision models are stand-ins"))
+    func aPageOfTextIsAUtilityPhoto() async throws {
         let signals = try await VisionFrameAnalyzer().analyze(textPage())
         #expect(signals.isUtility)
     }

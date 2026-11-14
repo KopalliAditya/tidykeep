@@ -81,7 +81,7 @@ struct CopiesView: View {
                 Section {
                     Label(Copy.Copies.stillLooking, systemImage: "magnifyingglass")
                         .font(.footnote)
-                        .foregroundStyle(.secondary)
+                        .foregroundStyle(Palette.secondaryText)
                         .photoListNote()
                 }
             }
@@ -118,7 +118,7 @@ private struct CopiesHeader: View {
                 .contentTransition(.numericText())
             Text(Copy.Copies.explainer)
                 .font(.footnote)
-                .foregroundStyle(.secondary)
+                .foregroundStyle(Palette.secondaryText)
                 .fixedSize(horizontal: false, vertical: true)
         }
         .accessibilityElement(children: .combine)
@@ -143,7 +143,7 @@ private struct CopiesLookingView: View {
                     .fixedSize(horizontal: false, vertical: true)
                 Text(Copy.Copies.explainer)
                     .font(.subheadline)
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(Palette.secondaryText)
                     .multilineTextAlignment(.center)
                     .fixedSize(horizontal: false, vertical: true)
             }
@@ -175,10 +175,10 @@ private struct CopySetRow: View {
                     .font(.body.weight(.semibold))
                 Text(Copy.Copies.relation(relation))
                     .font(.subheadline)
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(Palette.secondaryText)
                 Text(Copy.Copies.rowDetail(group, removing: removing))
                     .font(.footnote)
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(Palette.secondaryText)
                     .monospacedDigit()
             }
             .fixedSize(horizontal: false, vertical: true)
@@ -245,7 +245,7 @@ struct CopySetView: View {
                 members(group, keeper: keeper)
                 Text(Copy.Copies.afterMerge(favorite: group.members.contains(where: \.isFavorite), albums: photos.albumTitles(for: group)))
                     .font(.footnote)
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(Palette.secondaryText)
                     .fixedSize(horizontal: false, vertical: true)
                     .padding(.horizontal, Space.l)
             }
@@ -339,7 +339,7 @@ private struct KeeperHero: View {
                     .foregroundStyle(Palette.accent)
                 Text(Copy.Copies.memberLine(meta, format: format))
                     .font(.footnote)
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(Palette.secondaryText)
                     .monospacedDigit()
                     .multilineTextAlignment(.center)
             }
@@ -415,12 +415,12 @@ private struct CopyMemberRow: View {
                 }
                 Text(Copy.Copies.memberLine(meta, format: photos.formats[meta.id]))
                     .font(.footnote)
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(Palette.secondaryText)
                     .monospacedDigit()
                 if !isKeeper {
                     Text(Copy.Copies.relation(photos.relation(of: meta, in: group)))
                         .font(.footnote)
-                        .foregroundStyle(.secondary)
+                        .foregroundStyle(Palette.secondaryText)
                 }
             }
             .fixedSize(horizontal: false, vertical: true)

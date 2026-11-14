@@ -67,7 +67,7 @@ struct ReviewSheet: View {
                     if let line = request.sharedLibraryLine {
                         Label(line, systemImage: "person.2")
                             .font(.footnote)
-                            .foregroundStyle(.secondary)
+                            .foregroundStyle(Palette.secondaryText)
                     }
                 }
                 .padding(Space.l)
@@ -135,7 +135,7 @@ struct ReviewMosaic: View {
                         RoundedRectangle(cornerRadius: Radius.tile, style: .continuous)
                             .fill(Palette.fill)
                             .aspectRatio(1, contentMode: .fit)
-                            .overlay { Text(Copy.Review.moreCount(photos.count - Self.shown)).font(.headline).foregroundStyle(.secondary) }
+                            .overlay { Text(Copy.Review.moreCount(photos.count - Self.shown)).font(.headline).foregroundStyle(Palette.secondaryText) }
                     }
                 }
                 .accessibilityElement(children: .ignore)
@@ -149,7 +149,7 @@ struct ReviewMosaic: View {
                     }
                     if others.count > 50 {
                         Text(Copy.Review.moreCount(others.count - 50))
-                            .font(.footnote).foregroundStyle(.secondary)
+                            .font(.footnote).foregroundStyle(Palette.secondaryText)
                             .padding(Space.m)
                     }
                 }
@@ -172,7 +172,7 @@ struct ReviewMosaic: View {
                     Text(name)
                         .fixedSize(horizontal: false, vertical: true)
                         .frame(maxWidth: .infinity, alignment: .leading)
-                    Text(Copy.bytes(bytes)).foregroundStyle(.secondary).monospacedDigit()
+                    Text(Copy.bytes(bytes)).foregroundStyle(Palette.secondaryText).monospacedDigit()
                 }
             }
             .font(.subheadline)

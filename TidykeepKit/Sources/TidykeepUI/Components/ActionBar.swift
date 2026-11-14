@@ -11,8 +11,8 @@ struct BarAction {
 }
 
 /// The bottom bar: at most one secondary action and one prominent action, floating on glass
-/// above the content. At accessibility text sizes the buttons stack, primary last, so neither
-/// label is cut off.
+/// above the content. Labels wrap rather than cut off, and at accessibility text sizes the
+/// buttons stack, primary last.
 struct ActionBar: View {
     var secondary: BarAction?
     var primary: BarAction?
@@ -25,6 +25,9 @@ struct ActionBar: View {
                 if let secondary {
                     button(secondary)
                         .buttonStyle(.glass)
+                        // Clear glass over photos or text can leave the accent label too faint,
+                        // and Reduce Transparency removes the blur, so it sits on the card colour.
+                        .background(Palette.card, in: Capsule())
                         .accessibilityIdentifier("actionbar.secondary")
                 }
                 if let primary {
@@ -48,7 +51,9 @@ struct ActionBar: View {
                 } else if let symbol = item.systemImage {
                     Image(systemName: symbol)
                 }
-                Text(item.title).lineLimit(typeSize.isAccessibilitySize ? nil : 1)
+                Text(item.title)
+                    .multilineTextAlignment(.center)
+                    .fixedSize(horizontal: false, vertical: true)
             }
             .font(.body.weight(prominent ? .semibold : .regular))
             .foregroundStyle(prominent ? Palette.onAccent : Palette.accent)

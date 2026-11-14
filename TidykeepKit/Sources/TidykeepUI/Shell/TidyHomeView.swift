@@ -51,9 +51,11 @@ struct TidyHomeView: View {
                             .contentTransition(.numericText())
                         Image(systemName: "info.circle")
                             .font(.footnote)
-                            .foregroundStyle(.secondary)
+                            .foregroundStyle(Palette.secondaryText)
                             .accessibilityHidden(true)
                     }
+                    .frame(minHeight: 44, alignment: .leading)
+                    .contentShape(Rectangle())
                 }
                 .buttonStyle(.plain)
                 .accessibilityLabel(Copy.Coverage.line(checked: photos.coverage.checked, skipped: photos.coverage.totalSkipped))
@@ -70,7 +72,7 @@ struct TidyHomeView: View {
                         VStack(alignment: .leading, spacing: Space.hair) {
                             Text(Copy.Home.lastChange)
                                 .font(.caption.weight(.semibold))
-                                .foregroundStyle(.secondary)
+                                .foregroundStyle(Palette.secondaryText)
                                 .textCase(.uppercase)
                             Text(Copy.Receipts.sentence(last))
                                 .font(.subheadline.weight(.medium))

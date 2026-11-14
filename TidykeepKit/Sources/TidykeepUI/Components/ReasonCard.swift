@@ -42,7 +42,7 @@ struct ReasonCard: View {
                 .frame(minWidth: 22)
             VStack(alignment: .leading, spacing: 2) {
                 Text(title).font(.subheadline.weight(.semibold))
-                Text(text).font(.subheadline).foregroundStyle(.secondary)
+                Text(text).font(.subheadline).foregroundStyle(Palette.secondaryText)
                     .fixedSize(horizontal: false, vertical: true)
             }
         }

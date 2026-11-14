@@ -15,7 +15,7 @@ struct ContactsRulesSection: View {
             Label {
                 Text(Copy.Contacts.myCard)
                     .font(.subheadline)
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(Palette.secondaryText)
                     .fixedSize(horizontal: false, vertical: true)
             } icon: {
                 Image(systemName: "person.crop.circle.badge.questionmark")
