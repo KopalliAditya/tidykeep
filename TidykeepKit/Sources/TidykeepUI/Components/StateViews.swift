@@ -24,6 +24,7 @@ struct AllTidyView: View {
         .padding(Space.xxl)
         .frame(maxWidth: .infinity)
         .accessibilityElement(children: .combine)
+        .accessibilityIdentifier("empty.alltidy")
     }
 }
 

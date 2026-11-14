@@ -52,8 +52,8 @@ public final class Notices {
 typealias AnnouncementPriority = AttributeScopes.AccessibilityAttributes.AnnouncementPriorityAttribute.AnnouncementPriority
 
 /// A glass capsule near the top of the screen. It hides itself after a few seconds, except
-/// when VoiceOver or Switch Control is running: then it stays until dismissed, and its Undo is
-/// a custom action on the element.
+/// when VoiceOver or Switch Control is running: then it stays until dismissed. The text, Undo
+/// and Dismiss are separate elements, read in that order.
 struct NoticeBanner: View {
     @Environment(Notices.self) private var notices
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
@@ -81,6 +81,7 @@ struct NoticeBanner: View {
             Text(notice.text)
                 .font(.subheadline.weight(.medium))
                 .fixedSize(horizontal: false, vertical: true)
+                .accessibilityIdentifier("notice.banner")
             if let undo = notice.undo {
                 Button(undo.title) {
                     notices.dismiss(notice.id)
@@ -89,6 +90,9 @@ struct NoticeBanner: View {
                 .font(.subheadline.weight(.semibold))
                 .buttonStyle(.plain)
                 .foregroundStyle(Palette.accent)
+                .frame(minHeight: 44)
+                .contentShape(Rectangle())
+                .accessibilityIdentifier("notice.undo")
             }
             Button {
                 notices.dismiss(notice.id)
@@ -96,24 +100,17 @@ struct NoticeBanner: View {
                 Image(systemName: "xmark").font(.footnote.weight(.semibold)).foregroundStyle(.secondary)
             }
             .buttonStyle(.plain)
+            .frame(minWidth: 44, minHeight: 44)
+            .contentShape(Rectangle())
             .accessibilityLabel(Copy.General.dismiss)
         }
-        .padding(.horizontal, Space.l)
-        .padding(.vertical, Space.m)
+        .padding(.leading, Space.l)
+        .padding(.trailing, Space.xs)
+        .padding(.vertical, Space.xs)
         .glassEffect(.regular, in: .capsule)
         .padding(.horizontal, Space.l)
         .padding(.top, Space.s)
-        .accessibilityElement(children: .combine)
-        .accessibilityIdentifier("notice.banner")
-        .accessibilityActions {
-            if let undo = notice.undo {
-                Button(undo.title) {
-                    notices.dismiss(notice.id)
-                    Task { await undo.action() }
-                }
-            }
-            Button(Copy.General.dismiss) { notices.dismiss(notice.id) }
-        }
+        .accessibilityElement(children: .contain)
     }
 }
 

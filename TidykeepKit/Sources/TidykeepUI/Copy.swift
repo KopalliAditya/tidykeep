@@ -92,7 +92,7 @@ enum Copy {
         static let rows: [(symbol: String, text: String)] = [
             ("photo.stack", "Finds similar shots, copies, screenshots, big videos, duplicate files and contacts."),
             ("text.magnifyingglass", "Says why it suggests each thing. Nothing changes until you confirm."),
-            ("arrow.uturn.backward", "Every change is in History, with a way back."),
+            ("arrow.uturn.backward", "Every change is in History, with the way back where there is one."),
             ("lock.shield", "Everything stays on this iPhone. No account, no network."),
         ]
         static let `continue` = "Continue"
@@ -409,7 +409,7 @@ enum Copy {
         }
 
         static let empty = "No history yet"
-        static let emptyDetail = "Things you remove, move or merge show up here, with a way back."
+        static let emptyDetail = "Things you remove, move or merge show up here, with the way back where there is one."
     }
 
     // MARK: Empty and error states
