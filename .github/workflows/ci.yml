@@ -11,9 +11,10 @@
 #
 # macOS minutes are the expensive kind (10x against a private repo's quota), so: no matrix,
 # nothing heavy cached, a newer push to the same branch or pull request cancels the run in
-# progress, and changes to docs alone run nothing. The simulator job runs on pushes to main
-# and manual runs; on a pull request only when it has the "simulator" label (add the label,
-# then push, or run the workflow by hand on the branch).
+# progress, and changes to docs alone run nothing (except docs/PRIVACY.md, which a test
+# reads). The simulator job runs on pushes to main and manual runs; on a pull request only
+# when it has the "simulator" label (add the label, then push, or run the workflow by hand
+# on the branch).
 #
 # Event data (SHAs, inputs) reaches the scripts only through env:, never pasted into run:.
 name: CI
@@ -22,19 +23,25 @@ on:
   push:
     branches: [main]
     # Keep this list the same as pull_request's.
-    paths-ignore:
-      - "**/*.md"
-      - "docs/**"
-      - "bench/**"
-      - LICENSE
-      - NOTICE
+    paths:
+      - "**"
+      - "!**/*.md"
+      - "!docs/**"
+      - "!bench/**"
+      - "!LICENSE"
+      - "!NOTICE"
+      # A package test checks the app's policy text against this file.
+      - "docs/PRIVACY.md"
   pull_request:
-    paths-ignore:
-      - "**/*.md"
-      - "docs/**"
-      - "bench/**"
-      - LICENSE
-      - NOTICE
+    paths:
+      - "**"
+      - "!**/*.md"
+      - "!docs/**"
+      - "!bench/**"
+      - "!LICENSE"
+      - "!NOTICE"
+      # A package test checks the app's policy text against this file.
+      - "docs/PRIVACY.md"
   workflow_dispatch:
     inputs:
       a11y_audit:

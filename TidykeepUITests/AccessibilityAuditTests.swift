@@ -91,7 +91,8 @@ final class AccessibilityAuditTests: XCTestCase {
     /// The Rules rows at the largest text size, where each row puts its value or switch under
     /// its name. Each row's words are measured (`cutShort`), and the clipped text audit, which
     /// has no larger size left to guess about here, checks each row too. In strict mode, fails if
-    /// either finds anything in a row, or a switch row isn't more than twice its default height.
+    /// words are cut short, if the audit flags anything in a row other than text measured to fit
+    /// (which the row's note lists), or if a switch row isn't more than twice its default height.
     /// That audit sees only what VoiceOver sees, one switch per switch row, so a screenshot of
     /// each row shows its words; the element tree and the full audit are attached too.
     @MainActor
@@ -132,10 +133,17 @@ final class AccessibilityAuditTests: XCTestCase {
             let frame = row.frame
             let cut = Self.cutShort(in: row, at: size)
             var clipped: [String] = []
+            var fits: [String] = []
             if largest {
                 do {
                     try tidy.app.performAccessibilityAudit(for: .textClipped) { issue in
-                        if let element = issue.element, element.exists, element.frame.intersects(frame) {
+                        guard let element = issue.element, element.exists, element.frame.intersects(frame) else { return true }
+                        // On CI the audit flags some text whose words wrap whole within its
+                        // frame, as the screenshot shows. Text measured to fit is noted;
+                        // anything else it flags counts.
+                        if element.elementType == .staticText, Self.cutShort(element, at: size) == nil {
+                            fits.append("\(Self.describe(issue)) [measured: fits, \(Int(element.frame.width)) by \(Int(element.frame.height)) points]")
+                        } else {
                             clipped.append(Self.describe(issue))
                         }
                         return true
@@ -145,7 +153,8 @@ final class AccessibilityAuditTests: XCTestCase {
                 }
             }
             attach(
-                text: "\(identifier): \(Int(frame.height)) points tall\n" + (cut + clipped).joined(separator: "\n"),
+                text: "\(identifier): \(Int(frame.height)) points tall, measured at \(Int(Self.bodyFont(at: size).pointSize))-point body text\n"
+                    + (cut + clipped + fits).joined(separator: "\n"),
                 named: "\(name)-row-\(index + 1)"
             )
             guard strict else { continue }
@@ -172,20 +181,36 @@ final class AccessibilityAuditTests: XCTestCase {
         return cell.exists ? cell : app.descendants(matching: .any).matching(identifier: identifier).firstMatch
     }
 
-    /// Words in the row that are cut short: text one line tall but narrower than its words take
-    /// on one line at this text size, in the body style the rows use. The clipped text audit
-    /// guesses from the element tree; this measures what's on screen.
+    /// Words in the row that are cut short (`cutShort(_:at:)`).
     @MainActor
     private static func cutShort(in row: XCUIElement, at size: UIContentSizeCategory) -> [String] {
-        let font = UIFont.preferredFont(forTextStyle: .body, compatibleWith: UITraitCollection(preferredContentSizeCategory: size))
-        return row.staticTexts.allElementsBoundByIndex.compactMap { text -> String? in
-            guard text.exists, !text.label.isEmpty else { return nil }
-            let frame = text.frame
-            let oneLine = (text.label as NSString).size(withAttributes: [.font: font])
-            // A point or two either way is rounding.
-            guard frame.height < oneLine.height * 1.5, frame.width + 2 < oneLine.width else { return nil }
-            return "\"\(text.label)\" is \(Int(frame.width)) points wide and needs \(Int(oneLine.width.rounded(.up))) on one line"
-        }
+        row.staticTexts.allElementsBoundByIndex.compactMap { cutShort($0, at: size) }
+    }
+
+    /// How this text is cut short, or nil if its words fit: wrapped to the text's width at this
+    /// text size, in the body style the rows use, they need at least half a line more height
+    /// than it has. Cut text is missing a whole line or more, so anything less is rounding. The
+    /// clipped text audit guesses from the element tree; this measures what's on screen.
+    @MainActor
+    private static func cutShort(_ text: XCUIElement, at size: UIContentSizeCategory) -> String? {
+        guard text.exists, !text.label.isEmpty else { return nil }
+        let font = bodyFont(at: size)
+        let frame = text.frame
+        // A point or two of width either way is rounding, and mustn't wrap a word.
+        let needed = (text.label as NSString).boundingRect(
+            with: CGSize(width: frame.width + 2, height: .greatestFiniteMagnitude),
+            options: .usesLineFragmentOrigin, attributes: [.font: font], context: nil
+        )
+        guard needed.height > frame.height + font.lineHeight / 2 else { return nil }
+        let lines = Int((needed.height / font.lineHeight).rounded())
+        let room = max(1, Int((frame.height / font.lineHeight).rounded()))
+        return "\"\(text.label)\" is \(Int(frame.width)) by \(Int(frame.height)) points: its words take \(lines) line(s) at that width, and it has room for \(room)"
+    }
+
+    /// The body style the Rules rows use, at this text size.
+    @MainActor
+    private static func bodyFont(at size: UIContentSizeCategory) -> UIFont {
+        UIFont.preferredFont(forTextStyle: .body, compatibleWith: UITraitCollection(preferredContentSizeCategory: size))
     }
 
     /// A Rules switch row's height at the default text size, from the CI element tree.
@@ -211,7 +236,7 @@ final class AccessibilityAuditTests: XCTestCase {
         RunLoop.current.run(until: Date().addingTimeInterval(1.0))
         let chrome = systemChrome(in: tidy.app)
         let barTop = bottomBarTop(in: tidy.app)
-        var found: [(what: String, detail: String, clipped: Bool)] = []
+        var found: [(what: String, detail: String, kind: XCUIAccessibilityAuditType)] = []
         var ignored: [String] = []
 
         // Returning true marks an issue as handled, so the audit itself never fails the test;
@@ -226,25 +251,31 @@ final class AccessibilityAuditTests: XCTestCase {
             } else if let ratio = Self.measuredBarButtonContrast(issue), ratio >= 4.5 {
                 ignored.append("\(what) [ignored: measured \(String(format: "%.1f", ratio)):1 inside the button]")
             } else {
-                found.append((what, Self.position(of: issue) + issue.detailedDescription, issue.auditType == .textClipped))
+                found.append((what, Self.position(of: issue) + issue.detailedDescription, issue.auditType))
             }
             return true
         }
 
-        // The clipped text check grows the text and looks again, and on some CI runs it reports
-        // rows that fit at every size, such as Albums with its one word "None", while the same
-        // rows pass on others. So clipped text counts only if a second check, straight after,
-        // finds it too; the note lists what only the first one found.
-        if found.contains(where: { $0.clipped }) {
+        // The clipped text and Dynamic Type checks change the text size and look again, and on
+        // some CI runs they report what passes on others with the same code: rows that fit at
+        // every size, such as Albums with its one word "None", or once every text on the contact
+        // merge screen, which had no such issue in the six runs before. So those two count only
+        // if a second check, a moment later, finds them too; the note lists what only the first
+        // one found.
+        let rechecked: XCUIAccessibilityAuditType = [.textClipped, .dynamicType]
+        let doubtful = found.filter { rechecked.contains($0.kind) }
+        if !doubtful.isEmpty {
+            RunLoop.current.run(until: Date().addingTimeInterval(1.0))
+            let types = doubtful.reduce(into: XCUIAccessibilityAuditType()) { $0.formUnion($1.kind) }
             var again: Set<String> = []
-            try tidy.app.performAccessibilityAudit(for: .textClipped) { issue in
+            try tidy.app.performAccessibilityAudit(for: types) { issue in
                 again.insert(Self.describe(issue))
                 return true
             }
-            for issue in found where issue.clipped && !again.contains(issue.what) {
-                ignored.append("\(issue.what) [ignored: not found by a second clipped text check]")
+            for issue in doubtful where !again.contains(issue.what) {
+                ignored.append("\(issue.what) [ignored: not found by a second check]")
             }
-            found.removeAll { $0.clipped && !again.contains($0.what) }
+            found.removeAll { rechecked.contains($0.kind) && !again.contains($0.what) }
         }
         appIssues += found.map { "\(screen): \($0.what)" }
 
