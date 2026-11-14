@@ -43,6 +43,10 @@ private func unit(_ v: [Float]) -> [Float] {
 }
 
 /// The process's peak resident memory so far, in bytes.
+/// Set by the CI step that runs the memory test on its own. The peak is the whole process's,
+/// so tests running alongside would count against it.
+private let measuresMemoryAlone = ProcessInfo.processInfo.environment["TK_MEMORY_ALONE"] == "1"
+
 private func peakMemory() -> Int {
     var usage = rusage()
     getrusage(RUSAGE_SELF, &usage)
@@ -274,9 +278,12 @@ private func peakMemory() -> Int {
         #expect(CopyFinder.clusters(screens).isEmpty)
         // Test builds are unoptimized, so this is far slower than in the app.
         #expect(clock.now - start < .seconds(30))
-        // The peak is the whole test process's, so this only sees growth past an earlier peak, and
-        // tests running alongside add to it. Linking every pair added about 500 MB here.
-        #expect(peakMemory() - before < 250_000_000)
+        // Only alone in the process: the peak is the whole process's, so this sees growth past
+        // an earlier peak, and tests running alongside add to it. Linking every pair added
+        // about 500 MB here.
+        if measuresMemoryAlone {
+            #expect(peakMemory() - before < 250_000_000)
+        }
     }
 }
 

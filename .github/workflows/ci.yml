@@ -127,6 +127,13 @@ jobs:
         timeout-minutes: 15
         run: scripts/test.sh
 
+      # The memory budget is measured from the process's peak, so it runs with nothing else.
+      - name: Copy finder memory (alone)
+        timeout-minutes: 5
+        env:
+          TK_MEMORY_ALONE: "1"
+        run: scripts/test.sh --filter twoThousandLookAlikesTakeLittleTimeAndMemory
+
   simulator:
     name: simulator
     needs: package
