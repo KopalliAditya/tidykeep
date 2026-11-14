@@ -149,7 +149,12 @@ extension Copy.Receipts {
             if let deadline = r.deadline, deadline > now { return "Recover them in the Photos app. The steps are below." }
             return Copy.Reason.cantBeUndone
         case .copiesMerged:
-            if let deadline = r.deadline, deadline > now {
+            let recoverable = r.deadline.map { $0 > now } == true
+            // Undo changes is there only when the kept photo was added to an album.
+            guard r.canTakeBackMerge else {
+                return recoverable ? "Recover the removed copies in the Photos app. The steps are below." : Copy.Reason.cantBeUndone
+            }
+            if recoverable {
                 return "Undo changes takes the kept photo out of the albums it was added to. Recover the removed copies in the Photos app."
             }
             return "Undo changes takes the kept photo out of the albums it was added to. The removed copies are gone from Recently Deleted."
@@ -181,7 +186,8 @@ extension Copy.Receipts {
             return "Photos keeps them in Recently Deleted for \(days), then deletes them for good."
         case .copiesMerged:
             guard let deadline = r.deadline, deadline > now else {
-                return "The removed copies are past their \(days) in Recently Deleted, so they can't be brought back. The album changes can still be undone."
+                let gone = "The removed copies are past their \(days) in Recently Deleted, so they can't be brought back."
+                return r.canTakeBackMerge ? "\(gone) The album changes can still be undone." : gone
             }
             return "Photos keeps the removed copies in Recently Deleted for \(days), then deletes them for good."
         case .keptAll: return "Nothing was removed. The group just isn't suggested again."
@@ -199,8 +205,8 @@ extension Copy.Receipts {
         case .photosRemoved, .screenshotsRemoved, .videosRemoved, .copiesMerged:
             let undoChanges = "To take the kept photo back out of the albums it was added to, tap Undo changes below."
             guard let deadline = r.deadline, deadline > now else {
-                // The copies are gone for good, but the album changes can still be undone.
-                return r.kind == .copiesMerged ? [undoChanges] : []
+                // The copies are gone for good, but any album changes can still be undone.
+                return r.canTakeBackMerge ? [undoChanges] : []
             }
             var steps = [
                 "Open the Photos app.",
@@ -209,7 +215,7 @@ extension Copy.Receipts {
                 "Tap Select and choose the ones to bring back.",
                 "Tap Recover.",
             ]
-            if r.kind == .copiesMerged { steps.append(undoChanges) }
+            if r.canTakeBackMerge { steps.append(undoChanges) }
             return steps
         case .keptAll:
             return ["Tap Review again below. The group goes back in the list to look at again."]

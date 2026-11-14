@@ -54,9 +54,12 @@ extension Copy.Copies {
     }
 
     /// The Why line of a set's reason card. A favorite or edited copy is kept even when
-    /// another has more detail.
-    static func why(_ relation: CopyRelation, keeperIsProtected: Bool = false) -> String {
-        "\(Copy.Copies.relation(relation)). \(keeperIsProtected ? "Keeps the favorite or edited copy." : "Keeps the copy with the most detail.")"
+    /// another has more detail, and so is a copy the user chose.
+    static func why(_ relation: CopyRelation, keeperIsProtected: Bool = false, userChose: Bool = false) -> String {
+        let keeps = keeperIsProtected ? "Keeps the favorite or edited copy."
+            : userChose ? "Keeps the copy you chose."
+            : "Keeps the copy with the most detail."
+        return "\(Copy.Copies.relation(relation)). \(keeps)"
     }
 
     /// The Why line of the review sheet for one or more sets. The copy that stays may be a
@@ -77,8 +80,11 @@ extension Copy.Copies {
         return "Keeping copy \(number) of \(group.members.count). \(rest)"
     }
 
-    static func undo(until date: Date) -> String {
-        "Removed copies are in Recently Deleted in Photos until \(Copy.day(date)). The albums added can be taken back in History."
+    /// The Undo line before a merge. History takes back only the albums the kept copy joins, so
+    /// with none it isn't offered: the removed copies come back only from Photos.
+    static func undo(until date: Date, joinsAlbums: Bool) -> String {
+        let deleted = "Removed copies are in Recently Deleted in Photos until \(Copy.day(date))."
+        return joinsAlbums ? "\(deleted) The albums added can be taken back in History." : deleted
     }
 }
 

@@ -151,6 +151,10 @@ public struct MergeOutcome: Sendable, Hashable, Codable {
         self.albumIDsAdded = albumIDsAdded
         self.albumsSkipped = albumsSkipped
     }
+
+    /// The merge changed the keeper, so there is something to take back. Without it the merge
+    /// only removed copies, which only Photos can bring back.
+    public var changedKeeper: Bool { favoriteAdded || !albumIDsAdded.isEmpty }
 }
 
 /// Photos the check never looks at, counted by the library.

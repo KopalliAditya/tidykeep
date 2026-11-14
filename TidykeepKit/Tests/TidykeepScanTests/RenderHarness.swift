@@ -128,9 +128,12 @@ final class DemoPhotoSource: PhotoSource, @unchecked Sendable {
     private let folder: FolderPhotoSource
     private let lock = NSLock()
     private var videoList: [VideoMeta]
+    /// A photo in an album nothing can be added to, as some synced albums are.
+    private let closedAlbumPhoto: String?
 
-    init(folder url: URL) {
+    init(folder url: URL, closedAlbumPhoto: String? = nil) {
         folder = FolderPhotoSource(folder: url)
+        self.closedAlbumPhoto = closedAlbumPhoto
         let now = Date()
         videoList = [
             VideoMeta(id: "video-beach", creationDate: now.addingTimeInterval(-3 * 86_400), duration: 754, pixelWidth: 3840, pixelHeight: 2160),
@@ -167,11 +170,15 @@ final class DemoPhotoSource: PhotoSource, @unchecked Sendable {
     }
 
     func albums() async -> [PhotoAlbum] {
-        [
+        var albums = [
             PhotoAlbum(id: "album-family", title: "Family", assetIDs: ["series00_frame0.jpg"]),
             PhotoAlbum(id: "album-receipts", title: "Receipts", assetIDs: ["screenshot-1.png"]),
             PhotoAlbum(id: "album-trip", title: "Lisbon trip", assetIDs: ["video-beach"]),
         ]
+        if let closedAlbumPhoto {
+            albums.append(PhotoAlbum(id: "album-synced", title: "Synced", assetIDs: [closedAlbumPhoto], canAddPhotos: false))
+        }
+        return albums
     }
 
     func formats(for ids: [String]) async -> [String: String] {

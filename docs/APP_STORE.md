@@ -57,7 +57,7 @@ Tidykeep helps you tidy the photos, files and contacts on your iPhone, one decis
 
 PHOTOS
 • Similar Shots: runs of near-identical photos, like a burst or five tries at the same picture. Tidykeep suggests the best one in each group and says why, for example "sharpest and best faces".
-• Copies: the same photo saved more than once: resized, saved in another format, or as a screenshot. A favorite or edited copy is always the one kept; otherwise the copy with the most detail stays. It's added to the albums of the copies removed.
+• Copies: the same photo saved more than once: resized, saved in another format, or as a screenshot. A favorite or edited copy is always the one kept; otherwise the copy with the most detail stays, unless you choose another. It's added to the albums of the copies removed.
 • Screenshots: look back through old screenshots by month and mark the ones you're done with.
 • Big Videos: videos over a minute, with their length and resolution.
 

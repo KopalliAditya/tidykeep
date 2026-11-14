@@ -303,8 +303,13 @@ public final class PhotosModel {
         ledger.decisions.keeps(id, in: group)
     }
 
+    /// What removing or merging takes from this group. In a copy set, a copy in an album the
+    /// kept copy can't join stays (`CopyMerge.sparingAlbums`), so it isn't one of them.
     public func removals(in group: PhotoGroup) -> [AssetMeta] {
-        ledger.decisions.removals(in: group)
+        let marked = ledger.decisions.removals(in: group)
+        guard group.kind == .copies, !marked.isEmpty else { return marked }
+        let removable = Set(CopyMerge(keeperID: copyKeeper(in: group).id, removeIDs: marked.map(\.id)).sparingAlbums(albums).removeIDs)
+        return marked.filter { removable.contains($0.id) }
     }
 
     public var similarRemovalCount: Int { similar.reduce(0) { $0 + removals(in: $1).count } }
@@ -390,14 +395,7 @@ public final class PhotosModel {
             return
         }
         history.finish(receipt, completed: deleted.count) { $0.itemIDs = safe.filter(deleted.contains) }
-
-        // A group the user just cleaned is done. What's left of it is kept and remembered as
-        // reviewed, so it doesn't come back on the next check, even grouped differently.
-        for group in groups where group.members.contains(where: { deleted.contains($0.id) }) {
-            let left = group.members.map(\.id).filter { !deleted.contains($0) }
-            ledger.decisions.pin(left)
-            if left.count >= 2 { ledger.dismissedGroups.insert(Fingerprint.of(left)) }
-        }
+        settle(groups, deleted: deleted)
         await removed(deleted)
         notices.show(Copy.Notices.removedPhotos(deleted.count), systemImage: "trash")
     }
@@ -425,22 +423,37 @@ public final class PhotosModel {
             $0.itemIDs = Array(deleted).sorted()
             $0.payload = try? JSONEncoder().encode(outcomes)
         }
-        for outcome in outcomes { ledger.decisions.pin([outcome.keeperID]) }
+        settle(groups, deleted: deleted)
         await removed(deleted)
-        notices.show(Copy.Notices.mergedSets(outcomes.count, copies: deleted.count), systemImage: "square.on.square", undo: Notice.Undo(title: Copy.General.undo) { [weak self] in
-            guard let self, let receipt = self.history.receipt(receipt) else { return }
-            // Shares History's guard, so a tap here while History is undoing it does nothing.
-            await self.history.undoOnce(receipt.id) { await self.undoMerge(receipt) }
-        })
+        // Undo takes the kept copies back out of the albums they joined. A merge that added them
+        // to none has nothing to take back: the removed copies only come back from Photos.
+        var undo: Notice.Undo?
+        if outcomes.contains(where: \.changedKeeper) {
+            undo = Notice.Undo(title: Copy.General.undo) { [weak self] in
+                guard let self, let receipt = self.history.receipt(receipt) else { return }
+                // Shares History's guard, so a tap here while History is undoing it does nothing.
+                await self.history.undoOnce(receipt.id) { await self.undoMerge(receipt) }
+            }
+        }
+        notices.show(Copy.Notices.mergedSets(outcomes.count, copies: deleted.count), systemImage: "square.on.square", undo: undo)
+    }
+
+    /// A group the user just cleaned is done. What's left of it is kept and remembered as
+    /// reviewed, so it doesn't come back on the next check, even grouped differently. That
+    /// includes a copy a merge kept because the kept copy couldn't join its album.
+    private func settle(_ groups: [PhotoGroup], deleted: Set<String>) {
+        for group in groups where group.members.contains(where: { deleted.contains($0.id) }) {
+            let left = group.members.map(\.id).filter { !deleted.contains($0) }
+            ledger.decisions.pin(left)
+            if left.count >= 2 { ledger.dismissedGroups.insert(Fingerprint.of(left)) }
+        }
     }
 
     /// Takes the kept copies back out of the albums the merge added them to. The removed copies
     /// are in Recently Deleted, where only Photos can bring them back.
     public func undoMerge(_ receipt: Receipt) async {
-        guard receipt.kind == .copiesMerged, receipt.status != .undone else { return }
-        guard let data = receipt.payload, let outcomes = try? JSONDecoder().decode([MergeOutcome].self, from: data),
-              await source.undoMerge(outcomes)
-        else {
+        guard receipt.status != .undone, receipt.canTakeBackMerge else { return }
+        guard let outcomes = receipt.mergeOutcomes, await source.undoMerge(outcomes) else {
             notices.show(Copy.Notices.nothingChanged, systemImage: "exclamationmark.triangle")
             return
         }
@@ -563,6 +576,20 @@ public final class PhotosModel {
     private func saveLedger() {
         try? ledgerFile?.save(ledger)
     }
+}
+
+extension Receipt {
+    /// What a copy merge did to each set, from its payload. Nil for other changes and for a
+    /// merge cut off before it finished.
+    var mergeOutcomes: [MergeOutcome]? {
+        guard kind == .copiesMerged, let payload else { return nil }
+        return try? JSONDecoder().decode([MergeOutcome].self, from: payload)
+    }
+
+    /// A copy merge that added a kept photo to an album (or, in older receipts, made it a
+    /// favorite), so Undo changes has something to take back. A merge that only removed copies
+    /// has no Undo: only Photos can bring them back.
+    var canTakeBackMerge: Bool { mergeOutcomes?.contains(where: \.changedKeeper) == true }
 }
 
 final class ImageBox {

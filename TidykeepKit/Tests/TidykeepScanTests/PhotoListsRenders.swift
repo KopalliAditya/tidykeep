@@ -216,6 +216,100 @@ extension PhotoListsRenders {
         #expect(photos.copies.isEmpty)
     }
 
+    /// A copy in an album the kept copy can't join stays when its set is merged
+    /// (`CopyMerge.sparingAlbums`), so it isn't counted, listed or recorded as removed, and what's
+    /// left of the set doesn't come back on the next check.
+    @Test func aCopyInAnAlbumTheKeptCopyCantJoinIsNotRemoved() async throws {
+        let state = try await CopiesDemo.state(closedAlbum: "lake-copy.jpg")
+        let photos = state.photos
+        let lake = try #require(photos.copies.first { $0.members.count == 3 })
+        #expect(photos.copyKeeper(in: lake).id == "lake.jpg")
+        #expect(photos.removals(in: lake).map(\.id) == ["series00_frame0.jpg"])
+        #expect(photos.copyRemovalCount == 2)
+
+        let review = photos.mergeReview(for: photos.copies)
+        #expect(review.title == "Merge 2 sets?")
+        #expect(review.removing.count == 2)
+        #expect(!review.removing.map(\.id).contains("lake-copy.jpg"))
+        #expect(review.reason.keptSafe == Copy.Copies.keptSafe(1))
+        await review.confirm()
+
+        let receipt = try #require(state.history.receipts.first)
+        #expect(receipt.kind == .copiesMerged)
+        #expect(receipt.status == .done)
+        #expect(receipt.requested == 2 && receipt.completed == 2)
+        #expect(photos.ledger.dismissedGroups.contains(Fingerprint.of(["lake.jpg", "lake-copy.jpg"])))
+        photos.rescan()
+        try await waitForScan(photos)
+        #expect(photos.copies.isEmpty)
+    }
+
+    /// A set whose only other copy is in an album the kept copy can't join has nothing to merge.
+    @Test func aSetWithOnlySparedCopiesHasNothingToMerge() async throws {
+        let source = MemoryPhotoSource(photos: [], albums: [
+            PhotoAlbum(id: "synced", title: "Synced", assetIDs: ["s"], canAddPhotos: false),
+        ])
+        let state = try await Self.memoryState(source)
+        let photos = state.photos
+        let now = Date()
+        func copy(_ id: String, _ width: Int) -> (meta: AssetMeta, signals: FrameSignals) {
+            (AssetMeta(id: id, creationDate: now, pixelWidth: width, pixelHeight: width),
+             FrameSignals(embedding: QuantizedEmbedding([1, 0]), aesthetics: 0.5, isUtility: false, sharpness: 1, faceQualities: []))
+        }
+        let spared = PhotoGroup(copies: [copy("k", 2_000), copy("s", 1_000)])
+        let other = PhotoGroup(copies: [copy("a", 2_000), copy("b", 1_000)])
+        #expect(photos.removals(in: spared).isEmpty)
+        let review = photos.mergeReview(for: [spared, other])
+        #expect(review.title == "Merge 1 set?")
+        #expect(review.removing.map(\.id) == ["b"])
+        #expect(review.staying.map(\.id) == ["a"])
+    }
+
+    /// Undo after a merge is offered only when a kept copy joined an album, the one change the
+    /// app can take back. Without one, the receipt stays done and says when the removed copies
+    /// leave Recently Deleted.
+    @Test func aMergeOffersUndoOnlyWhenTheKeptCopyJoinedAnAlbum() async throws {
+        let source = MemoryPhotoSource(photos: [], albums: [PhotoAlbum(id: "trip", title: "Trip", assetIDs: ["c"])])
+        let state = try await Self.memoryState(source)
+        let photos = state.photos
+        let now = Date()
+        func copy(_ id: String, _ width: Int) -> (meta: AssetMeta, signals: FrameSignals) {
+            (AssetMeta(id: id, creationDate: now, pixelWidth: width, pixelHeight: width),
+             FrameSignals(embedding: QuantizedEmbedding([1, 0]), aesthetics: 0.5, isUtility: false, sharpness: 1, faceQualities: []))
+        }
+        let plain = PhotoGroup(copies: [copy("a", 2_000), copy("b", 1_000)])
+        #expect(!photos.mergeReview(for: [plain]).reason.undo.contains("History"))
+        await photos.mergeCopies([plain])
+        #expect(state.notices.current?.text.hasPrefix("Merged 1 set.") == true)
+        #expect(state.notices.current?.undo == nil)
+        let done = try #require(state.history.receipts.first)
+        #expect(done.status == .done)
+        #expect(!state.canUndo(done))
+        #expect(Copy.Receipts.status(done).hasPrefix("In Recently Deleted until"))
+        #expect(!Copy.Receipts.undoLine(done).contains("Undo changes"))
+        #expect(!Copy.Receipts.recoverySteps(done).contains { $0.contains("Undo changes") })
+
+        let joining = PhotoGroup(copies: [copy("k", 2_000), copy("c", 1_000)])
+        #expect(photos.mergeReview(for: [joining]).reason.undo.contains("History"))
+        await photos.mergeCopies([joining])
+        let undo = try #require(state.notices.current?.undo)
+        let merged = try #require(state.history.receipts.first)
+        #expect(state.canUndo(merged))
+        #expect(Copy.Receipts.recoverySteps(merged).last?.contains("Undo changes") == true)
+        await undo.action()
+        #expect(state.history.receipt(merged.id)?.status == .undone)
+        #expect(state.notices.current?.text.hasPrefix("Took back") == true)
+    }
+
+    /// The reason card says which copy stays and why: a favorite or edited one, the one the
+    /// user chose, or else the one with the most detail.
+    @Test func reasonSaysWhichCopyStays() {
+        #expect(Copy.Copies.why(.smaller) == "Same photo, saved smaller. Keeps the copy with the most detail.")
+        #expect(Copy.Copies.why(.smaller, keeperIsProtected: true).hasSuffix("Keeps the favorite or edited copy."))
+        #expect(Copy.Copies.why(.smaller, userChose: true).hasSuffix("Keeps the copy you chose."))
+        #expect(Copy.Copies.why(.smaller, keeperIsProtected: true, userChose: true).hasSuffix("Keeps the favorite or edited copy."))
+    }
+
     @Test func onlyCopiesAboveEveryKeptSafeOneCanBeChosen() async throws {
         let state = try await Self.memoryState(MemoryPhotoSource(photos: []))
         let photos = state.photos
@@ -270,7 +364,7 @@ extension PhotoListsRenders {
         #expect(Copy.Copies.list(["Family", "Trip", "Work"]) == "Family, Trip and Work")
         #expect(Copy.Copies.afterMerge(favorite: true, albums: ["Family"]).contains("a favorite and in Family"))
         let words = [
-            Copy.Copies.explainer, Copy.Copies.undo(until: Date()), Copy.Copies.reviewWhy(sets: 2),
+            Copy.Copies.explainer, Copy.Copies.undo(until: Date(), joinsAlbums: true), Copy.Copies.reviewWhy(sets: 2),
             Copy.Screenshots.keptSafeFooter(albums: true), Copy.Videos.footer(kept: 2), Copy.Videos.removesEverywhere,
             Copy.Copies.keptSafeFirst, Copy.Copies.cantChooseKeptSafeFirst, Copy.Screenshots.hiddenMarked(2),
         ].joined(separator: " ").lowercased()
@@ -317,8 +411,9 @@ enum ListsDemo {
 /// they usually are, so the time window never takes them as similar shots.
 @MainActor
 enum CopiesDemo {
-    /// `favorite` names a file Photos would call a favorite.
-    static func state(favorite: String? = nil) async throws -> AppState {
+    /// `favorite` names a file Photos would call a favorite, and `closedAlbum` one in an album
+    /// nothing can be added to.
+    static func state(favorite: String? = nil, closedAlbum: String? = nil) async throws -> AppState {
         let library = temporaryDirectory("copies-library-\(UUID().uuidString)")
         let now = Date()
         func day(_ n: Double) -> Date { now.addingTimeInterval(-n * 86_400) }
@@ -344,7 +439,7 @@ enum CopiesDemo {
         if let favorite { manifest.files[favorite]?.favorite = true }
         try manifest.write(to: library)
 
-        return try await start(DemoPhotoSource(folder: library), analyzer: HueAnalyzer(), findsCopies: true)
+        return try await start(DemoPhotoSource(folder: library, closedAlbumPhoto: closedAlbum), analyzer: HueAnalyzer(), findsCopies: true)
     }
 
     static func start(_ source: DemoPhotoSource, analyzer: any FrameAnalyzing, findsCopies: Bool) async throws -> AppState {
