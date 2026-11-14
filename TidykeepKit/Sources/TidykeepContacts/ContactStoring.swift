@@ -79,6 +79,10 @@ public protocol ContactStoring: Sendable {
     /// once per merge; History marks the merge undone, because a second call would re-create
     /// the cards again.
     func undo(_ plan: MergePlan, backup: Data, overwritingLaterEdits: Bool) async throws -> [String]
+    /// Saves the card as a new card in the default account and returns its identifier. The
+    /// card's own identifier, account and photo flag are ignored. The simulator's sample cards
+    /// for UI tests come in this way.
+    func add(_ card: ContactCard) async throws -> String
 }
 
 extension ContactStoring {

@@ -47,6 +47,11 @@ public final class SystemContactStore: ContactStoring {
             limitedAccess: authorization() == .limited)
     }
 
+    @concurrent
+    public func add(_ card: ContactCard) async throws -> String {
+        try Self.addNow(card)
+    }
+
     static func access(_ status: CNAuthorizationStatus) -> ContactAccess {
         switch status {
         case .notDetermined: return .notDetermined
@@ -206,6 +211,14 @@ public final class SystemContactStore: ContactStoring {
         }
         try store.execute(save)
         return created.map(\.contact.identifier)
+    }
+
+    private static func addNow(_ card: ContactCard) throws -> String {
+        let contact = card.newContact(imageData: nil)
+        let save = CNSaveRequest()
+        save.add(contact, toContainerWithIdentifier: nil)
+        try CNContactStore().execute(save)
+        return contact.identifier
     }
 
     /// A backed-up card as a new contact, with the groups to put it back in.

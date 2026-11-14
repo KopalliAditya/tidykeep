@@ -37,6 +37,7 @@ public struct RootView: View {
         .minimizingTabBar()
         .tint(Palette.accent)
         .noticeOverlay()
+        .contactsUndoConfirmation()
         .onboarding(isPresented: $state.showsOnboarding)
         .task { await state.start() }
         .onChange(of: scenePhase) { _, phase in state.scenePhaseChanged(to: phase) }
