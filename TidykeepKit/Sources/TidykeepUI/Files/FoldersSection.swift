@@ -6,6 +6,8 @@ import TidykeepCore
 struct FoldersSection: View {
     @Environment(FilesModel.self) private var files
     @ViewState private var picking = false
+    /// The folder being chosen again, or nil when adding one.
+    @ViewState private var choosingAgain: UUID?
 
     var body: some View {
         Section {
@@ -15,7 +17,7 @@ struct FoldersSection: View {
                     .frame(minHeight: 44)
             }
             ForEach(Array(files.folders.enumerated()), id: \.element.id) { index, folder in
-                FolderRow(folder: folder, chooseAgain: { picking = true })
+                FolderRow(folder: folder, chooseAgain: { choose(replacing: folder.id) })
                     .swipeActions(edge: .trailing) {
                         Button(Copy.Files.removeFolder, role: .destructive) { remove(folder) }
                     }
@@ -23,7 +25,7 @@ struct FoldersSection: View {
                     .accessibilityIdentifier("folders.row.\(index)")
             }
             Button {
-                picking = true
+                choose(replacing: nil)
             } label: {
                 Label(Copy.Files.addFolder, systemImage: "folder.badge.plus")
                     .foregroundStyle(Palette.accent)
@@ -37,7 +39,12 @@ struct FoldersSection: View {
         } footer: {
             Text(Copy.Files.foldersFooter).fixedSize(horizontal: false, vertical: true)
         }
-        .folderPicker(isPresented: $picking)
+        .folderPicker(isPresented: $picking, replacing: choosingAgain)
+    }
+
+    private func choose(replacing id: UUID?) {
+        choosingAgain = id
+        picking = true
     }
 
     private func remove(_ folder: FilesModel.Folder) {

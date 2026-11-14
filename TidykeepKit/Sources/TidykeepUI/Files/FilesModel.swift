@@ -85,11 +85,21 @@ public final class FilesModel {
     private(set) var keptByRule = 0
     /// True once a check has finished, so an empty list means "nothing found".
     private(set) var hasChecked = false
+    /// Folders the last check could open.
+    private(set) var checkedFolderCount = 0
+    /// True when the last check failed, so the lists may be out of date.
+    private(set) var checkFailed = false
     /// A move, put back or delete in progress.
     private(set) var isBusy = false
-    /// What went wrong last, in a sentence. Cleared by the next change that works.
+    /// What went wrong last, in a sentence. Cleared by the next change or check that works.
     private(set) var lastError: String?
+    /// Held files whose original folder is gone, so the user has to choose where they go.
+    private(set) var needsPlace: Set<UUID> = []
 
+    /// True when an empty list really means nothing was found: a check finished without an
+    /// error and opened at least one folder. An unopenable folder looks the same as an empty
+    /// one, so without this the screens would say "All tidy" about folders they never saw.
+    var canSayAllTidy: Bool { hasChecked && !isScanning && !checkFailed && checkedFolderCount > 0 }
     var skippedCount: Int { skipped.values.reduce(0, +) + keptByRule }
     var duplicateExtraCount: Int { duplicateGroups.reduce(0) { $0 + $1.movable.count } }
     var unavailableFolders: [Folder] { folders.filter { !$0.isAvailable } }
@@ -125,6 +135,8 @@ public final class FilesModel {
     /// Bumped by every move, so a check that was listing at the time knows to start again.
     private var changeCount = 0
     private var lastScanned: Date?
+    /// Folders kept open while the system's file mover moves a held file out of them.
+    private var placingScopes: [UUID: URL] = [:]
 
     public init(directory: URL?, preferences: Preferences, history: History, notices: Notices) {
         self.directory = directory
@@ -138,6 +150,23 @@ public final class FilesModel {
         self.holding = HoldingStore(manifestURL: manifest)
         self.refs = foldersFile?.load() ?? []
         publishFolders()
+        followRules()
+    }
+
+    /// Rebuilds the lists whenever the large-file size or the 7-day rule changes, so what's
+    /// on screen matches Rules straight away. Nothing is read from disk for that.
+    private func followRules() {
+        withObservationTracking {
+            _ = preferences.largeFileMinimum
+            _ = preferences.rules.hideFilesChangedWithinDays
+        } onChange: { [weak self] in
+            // Called before the new value is set, so rebuild on the next turn.
+            Task { @MainActor [weak self] in
+                guard let self else { return }
+                self.derive()
+                self.followRules()
+            }
+        }
     }
 
     // MARK: Starting and checking
@@ -150,12 +179,20 @@ public final class FilesModel {
         rescan()
     }
 
+    /// Checks the folders again. The last error goes away, since the check shows things as
+    /// they are now; if the problem is still there, the check says so again.
     public func rescan() {
+        rescan(keepingError: false)
+    }
+
+    /// `keepingError` is for the check that follows a change, so the change's own error (say,
+    /// one file that couldn't be put back) stays on screen.
+    private func rescan(keepingError: Bool) {
         guard started else { return }
         scanTask?.cancel()
         scanToken += 1
         let token = scanToken
-        scanTask = Task { [weak self] in await self?.runScan(token: token) }
+        scanTask = Task { [weak self] in await self?.runScan(token: token, keepingError: keepingError) }
     }
 
     /// Checks again when the app comes back if the folders may have changed.
@@ -183,10 +220,11 @@ public final class FilesModel {
         await reloadHolding()
     }
 
-    private func runScan(token: Int) async {
+    private func runScan(token: Int, keepingError: Bool) async {
         await prepare()
         await clearPendingHolding()
         guard token == scanToken else { return }
+        if !keepingError { lastError = nil }
         resolveFolders()
         guard !refs.isEmpty else {
             clearResults()
@@ -231,14 +269,18 @@ public final class FilesModel {
             guard changeCount == changesAtStart else {
                 // A file moved while the folders were being listed; the list may still name it
                 // where it was.
-                rescan()
+                rescan(keepingError: keepingError)
                 return
             }
-            apply(inventory, report)
+            let opened = Set(pairs.map(\.0.id)).subtracting(inventory.unavailableFolderIDs).count
+            apply(inventory, report, openedFolders: opened)
         } catch is CancellationError {
             return
         } catch {
-            if token == scanToken { lastError = Copy.Files.checkFailed }
+            if token == scanToken {
+                checkFailed = true
+                lastError = Copy.Files.checkFailed
+            }
         }
     }
 
@@ -271,13 +313,15 @@ public final class FilesModel {
         return report
     }
 
-    private func apply(_ inventory: FileInventory, _ report: DuplicateFileReport) {
+    private func apply(_ inventory: FileInventory, _ report: DuplicateFileReport, openedFolders: Int) {
         present = inventory.items
         foundSets = report.sets
         var skipped = inventory.skipped
         for (reason, count) in report.skipped { skipped[reason, default: 0] += count }
         self.skipped = skipped
         checkedCount = inventory.checkedCount
+        checkedFolderCount = openedFolders
+        checkFailed = false
         unavailableIDs.formUnion(inventory.unavailableFolderIDs)
         publishFolders()
         lastScanned = Date()
@@ -290,6 +334,8 @@ public final class FilesModel {
         foundSets = []
         skipped = [:]
         checkedCount = 0
+        checkedFolderCount = 0
+        checkFailed = false
         isScanning = false
         phase = .idle
         hasChecked = true
@@ -344,21 +390,25 @@ public final class FilesModel {
         addFolders([url])
     }
 
-    func addFolders(_ picked: [URL]) {
+    /// Adds folders from the picker. With `replacing`, the first one is the folder the user
+    /// chose again for a folder that couldn't be opened: it takes over that folder's place,
+    /// so its files in Holding can be put back.
+    func addFolders(_ picked: [URL], replacing id: UUID? = nil) {
         var names: [String] = []
-        for url in picked {
+        for (index, url) in picked.enumerated() {
             do {
-                names.append(try insertFolder(url).displayName)
+                names.append(try insertFolder(url, replacing: index == 0 ? id : nil).displayName)
             } catch {
                 lastError = Copy.Files.couldNotAddFolder
             }
         }
         guard !names.isEmpty else { return }
-        if names.count == picked.count { lastError = nil }
+        let allAdded = names.count == picked.count
+        if allAdded { lastError = nil }
         saveFolders()
         publishFolders()
         notices.show(Copy.Files.addedFolders(names), systemImage: "folder.badge.plus")
-        rescan()
+        rescan(keepingError: !allAdded)
     }
 
     /// Stops checking a folder. Its held files go back where they were first; if any can't,
@@ -407,11 +457,20 @@ public final class FilesModel {
         path.isEmpty ? folder : "\(folder)/\(path)"
     }
 
-    private func insertFolder(_ url: URL) throws -> FolderRef {
+    /// Remembers a picked folder. It replaces, keeping the id so held files still point at it:
+    /// a folder that already resolves to the same place; else the folder being chosen again;
+    /// else a folder that couldn't be opened with the same name, as long as its held files
+    /// (if any) are in the picked folder's "Held by Tidykeep". Otherwise it's a new folder.
+    private func insertFolder(_ url: URL, replacing id: UUID?) throws -> FolderRef {
         let made = try FolderAccess.makeRef(for: url)
         let path = Self.canonicalPath(url)
+        let match = refs.firstIndex { urls[$0.id].map(Self.canonicalPath) == path }
+            ?? id.flatMap { id in refs.firstIndex { $0.id == id } }
+            ?? refs.firstIndex { ref in
+                unavailableIDs.contains(ref.id) && ref.displayName == made.displayName && holdsItsFiles(ref.id, root: url)
+            }
         let ref: FolderRef
-        if let index = refs.firstIndex(where: { urls[$0.id].map(Self.canonicalPath) == path }) {
+        if let index = match {
             ref = FolderRef(id: refs[index].id, displayName: made.displayName, bookmark: made.bookmark)
             refs[index] = ref
         } else {
@@ -421,6 +480,16 @@ public final class FilesModel {
         urls[ref.id] = url
         unavailableIDs.remove(ref.id)
         return ref
+    }
+
+    /// Whether `root` is where a folder's held files are, so it's the same folder. A folder
+    /// with nothing held matches by name alone.
+    private func holdsItsFiles(_ folderID: UUID, root: URL) -> Bool {
+        let mine = held.filter { $0.folderID == folderID }
+        guard !mine.isEmpty else { return true }
+        return FolderAccess.withAccess(to: root) {
+            mine.contains { FileManager.default.fileExists(atPath: root.appendingPathComponent($0.heldRelativePath).path) }
+        }
     }
 
     private func resolveFolders() {
@@ -630,6 +699,8 @@ public final class FilesModel {
                 _ = try await holding.putBack(item.id, folderRoot: root)
                 back.append(item)
             } catch let error as FilesError {
+                // Its folder was renamed or deleted: the user chooses where it goes instead.
+                if case .originalFolderMissing = error { needsPlace.insert(item.id) }
                 errors.append(error)
             } catch {
                 errors.append(.couldNotMove(name: item.name, folder: HoldingFolder.name))
@@ -648,11 +719,58 @@ public final class FilesModel {
                 let done = Copy.Files.putBackDone(back.count)
                 notices.show(errors.isEmpty ? done : Copy.Files.partly(done, failed: errors.count), systemImage: "arrow.uturn.backward")
             }
-            rescan()
+            rescan(keepingError: !errors.isEmpty)
         } else if let lastError {
             notices.announce(lastError, priority: .high)
         }
         return back
+    }
+
+    /// Where a held file is now, with its folder kept open, for the system's file mover ("Choose
+    /// where to put it back"). Call `endPlacing` when the mover closes, whatever happened.
+    func beginPlacing(_ item: HoldingItem) async -> URL? {
+        guard let root = urls[item.folderID] else {
+            lastError = Copy.Files.error(.folderUnavailable(name: folderName(item.folderID)))
+            return nil
+        }
+        guard let url = try? await holding.heldURL(of: item.id, folderRoot: root) else {
+            lastError = Copy.Files.error(.heldFileMissing(name: item.name))
+            return nil
+        }
+        if placingScopes[item.id] == nil, root.startAccessingSecurityScopedResource() {
+            placingScopes[item.id] = root
+        }
+        return url
+    }
+
+    /// The file mover closed. If the held file has left "Held by Tidykeep", it was put back
+    /// where the user chose: Holding forgets it and History records it. `destination` is where
+    /// the mover says it went, when it says.
+    func endPlacing(_ item: HoldingItem, movedTo destination: URL?) async {
+        var stillHeld = true
+        if let root = urls[item.folderID] {
+            let path = root.appendingPathComponent(item.heldRelativePath).path
+            stillHeld = FolderAccess.withAccess(to: root) { FileManager.default.fileExists(atPath: path) }
+        }
+        if let scope = placingScopes.removeValue(forKey: item.id) { scope.stopAccessingSecurityScopedResource() }
+        guard !stillHeld, held.contains(where: { $0.id == item.id }) else { return }
+
+        changeCount += 1
+        let receipt = history.begin(.filesPutBack, requested: 1, itemIDs: [item.id.uuidString], bytes: item.bytes, title: item.name)
+        let forgotten = (try? await holding.forget(item.id)) != nil
+        history.finish(receipt, completed: forgotten ? 1 : 0)
+        guard forgotten else {
+            // The file has moved, so the next check's reconcile drops the row.
+            lastError = Copy.Files.error(.couldNotSaveManifest(path: holding.manifestURL.path))
+            return
+        }
+        needsPlace.remove(item.id)
+        markHeldReceiptsUndone([item.id])
+        await reloadHolding()
+        lastError = nil
+        let folder = destination?.deletingLastPathComponent().lastPathComponent
+        notices.show(folder.map { Copy.Files.placed(item.name, in: $0) } ?? Copy.Files.putBackDone(1), systemImage: "arrow.uturn.backward")
+        rescan()
     }
 
     /// A move whose files are all back has been undone.
@@ -720,6 +838,12 @@ public final class FilesModel {
         notices.show(errors.isEmpty ? done : Copy.Files.partly(done, failed: errors.count), systemImage: "trash")
     }
 
+    /// Whether a held file's folder is in iCloud Drive, where deleting it also removes it from
+    /// the user's other devices.
+    func isInICloudDrive(_ item: HoldingItem) -> Bool {
+        urls[item.folderID].map(Self.isInICloudDrive) ?? false
+    }
+
     private static func isInICloudDrive(_ url: URL) -> Bool {
         url.path.contains("/Mobile Documents/")
     }
@@ -734,6 +858,7 @@ public final class FilesModel {
         }
         holdingCount = held.count
         holdingBytes = held.reduce(0) { $0 + $1.bytes }
+        needsPlace.formIntersection(held.map(\.id))
     }
 
     private func clearPendingHolding() async {

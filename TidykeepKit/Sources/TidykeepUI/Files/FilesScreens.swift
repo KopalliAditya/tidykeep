@@ -8,13 +8,14 @@ import TidykeepFiles
 struct DuplicateFilesView: View {
     @Environment(FilesModel.self) private var files
     @ViewState private var picking = false
+    @ViewState private var choosingAgain: UUID?
     @ViewState private var review: ReviewRequest?
 
     var body: some View {
         content
             .navigationTitle(Copy.Files.duplicatesTitle)
             .inlineNavigationTitle()
-            .folderPicker(isPresented: $picking)
+            .folderPicker(isPresented: $picking, replacing: choosingAgain)
             .reviewSheet($review)
             .actionBar(primary: moveAll)
     }
@@ -23,7 +24,7 @@ struct DuplicateFilesView: View {
     private var content: some View {
         if files.folderCount == 0 {
             ScrollView {
-                NoFoldersView { picking = true }
+                NoFoldersView { choose(replacing: nil) }
                     .padding(Space.l)
             }
             .background(Palette.groupedBackground)
@@ -36,12 +37,12 @@ struct DuplicateFilesView: View {
                     Section { InlineError(text: error) }
                 }
                 if !files.unavailableFolders.isEmpty {
-                    Section { UnavailableFoldersNote(folders: files.unavailableFolders) { picking = true } }
+                    Section { UnavailableFoldersNote(folders: files.unavailableFolders) { choose(replacing: $0.id) } }
                 }
                 if files.duplicateGroups.isEmpty {
-                    if files.hasChecked, !files.isScanning {
+                    if files.canSayAllTidy {
                         Section {
-                            AllTidyView(detail: Copy.Files.noDuplicates(folders: files.folderCount))
+                            AllTidyView(detail: Copy.Files.noDuplicates(folders: files.checkedFolderCount))
                                 .listRowBackground(Color.clear)
                         } footer: {
                             ruleFooter
@@ -73,7 +74,15 @@ struct DuplicateFilesView: View {
     }
 
     private var summary: String {
-        Copy.Files.duplicatesSummary(sets: files.duplicateSetCount, extras: files.duplicateExtraCount, bytes: files.duplicateExtraBytes)
+        Copy.Files.duplicatesSummary(
+            sets: files.duplicateSetCount, extras: files.duplicateExtraCount, bytes: files.duplicateExtraBytes,
+            sureNothing: files.canSayAllTidy
+        )
+    }
+
+    private func choose(replacing id: UUID?) {
+        choosingAgain = id
+        picking = true
     }
 
     /// Moves every set's extra copies, through the review sheet, since the user hasn't looked
@@ -185,13 +194,13 @@ struct DuplicateFileSetView: View {
                 }
 
                 CardSection(title: Copy.Files.keeping) {
-                    card { copyRow(group.keeper, badge: Copy.Files.keepingThis) }
+                    card { keeperRow(group.keeper) }
                 }
 
                 CardSection(title: Copy.Files.movingSection) {
                     card {
                         ForEach(group.movable) { item in
-                            copyRow(item, in: group)
+                            copyRow(item, in: group, value: Copy.Files.movingValue)
                             if item.id != group.movable.last?.id { Divider() }
                         }
                     }
@@ -201,7 +210,7 @@ struct DuplicateFileSetView: View {
                     CardSection(title: Copy.Files.stayingSection, footer: Copy.Files.changedRecently) {
                         card {
                             ForEach(group.recent) { item in
-                                copyRow(item, in: group)
+                                copyRow(item, in: group, value: Copy.Files.stayingValue)
                                 if item.id != group.recent.last?.id { Divider() }
                             }
                         }
@@ -238,15 +247,24 @@ struct DuplicateFileSetView: View {
                 badge: badge
             )
         }
-        .accessibilityElement(children: .combine)
     }
 
-    private func copyRow(_ item: FileItem, in group: FilesModel.DuplicateGroup) -> some View {
-        VStack(alignment: .leading, spacing: Space.s) {
+    /// The copy that stays: one element, selected.
+    private func keeperRow(_ item: FileItem) -> some View {
+        copyRow(item, badge: Copy.Files.keepingThis)
+            .accessibilityElement(children: .ignore)
+            .accessibilityLabel(Copy.Files.copyRowLabel(item, folder: files.location(of: item)))
+            .accessibilityValue(Copy.Files.keepingValue)
+            .accessibilityAddTraits(.isSelected)
+    }
+
+    /// Another copy, with the button that keeps it instead. For VoiceOver and Voice Control
+    /// it's one element named after the copy, so each row says which file it keeps.
+    private func copyRow(_ item: FileItem, in group: FilesModel.DuplicateGroup, value: String) -> some View {
+        let keep = { files.keep(item.id, inSet: group.id) }
+        return VStack(alignment: .leading, spacing: Space.s) {
             copyRow(item)
-            Button {
-                files.keep(item.id, inSet: group.id)
-            } label: {
+            Button(action: keep) {
                 Text(Copy.Files.keepThisInstead)
                     .font(.subheadline.weight(.semibold))
                     .foregroundStyle(Palette.accent)
@@ -255,8 +273,15 @@ struct DuplicateFileSetView: View {
             }
             .buttonStyle(.plain)
             .padding(.leading, 36 + Space.m)
-            .accessibilityHint(Copy.Files.keepThisInsteadHint(group.keeper.name))
         }
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(Copy.Files.copyRowLabel(item, folder: files.location(of: item)))
+        .accessibilityValue(value)
+        .accessibilityAddTraits(.isButton)
+        .accessibilityHint(Copy.Files.keepThisInsteadHint(group.keeper.name))
+        .accessibilityInputLabels([Text(item.name)])
+        .accessibilityAction { keep() }
+        .accessibilityAction(named: Copy.Files.keepThisCopyInstead) { keep() }
     }
 }
 
@@ -268,12 +293,13 @@ struct LargeFilesView: View {
     @Environment(FilesModel.self) private var files
     @ViewState private var selection: Set<String> = []
     @ViewState private var picking = false
+    @ViewState private var choosingAgain: UUID?
 
     var body: some View {
         content
             .navigationTitle(Copy.Files.largeTitle)
             .inlineNavigationTitle()
-            .folderPicker(isPresented: $picking)
+            .folderPicker(isPresented: $picking, replacing: choosingAgain)
             .actionBar(secondary: selectAll, primary: moveSelected)
             .feedback(.selection, trigger: selection)
             .onChange(of: files.largeFiles.map(\.id)) { _, ids in
@@ -285,23 +311,26 @@ struct LargeFilesView: View {
     private var content: some View {
         if files.folderCount == 0 {
             ScrollView {
-                NoFoldersView { picking = true }
+                NoFoldersView { choose(replacing: nil) }
                     .padding(Space.l)
             }
             .background(Palette.groupedBackground)
         } else {
             List {
                 Section {
-                    FilesStatusHeader(summary: Copy.Files.largeSummary(files.largeFileCount, bytes: files.largeFileBytes, minimum: files.largeFileMinimum))
+                    FilesStatusHeader(summary: Copy.Files.largeSummary(
+                        files.largeFileCount, bytes: files.largeFileBytes, minimum: files.largeFileMinimum,
+                        sureNothing: files.canSayAllTidy
+                    ))
                 }
                 if let error = files.lastError {
                     Section { InlineError(text: error) }
                 }
                 if !files.unavailableFolders.isEmpty {
-                    Section { UnavailableFoldersNote(folders: files.unavailableFolders) { picking = true } }
+                    Section { UnavailableFoldersNote(folders: files.unavailableFolders) { choose(replacing: $0.id) } }
                 }
                 if files.largeFiles.isEmpty {
-                    if files.hasChecked, !files.isScanning {
+                    if files.canSayAllTidy {
                         Section {
                             AllTidyView(detail: Copy.Files.noLargeFiles(minimum: files.largeFileMinimum))
                                 .listRowBackground(Color.clear)
@@ -382,6 +411,11 @@ struct LargeFilesView: View {
         .accessibilityAction(named: Copy.Files.moveToHolding) { move([item]) }
     }
 
+    private func choose(replacing id: UUID?) {
+        choosingAgain = id
+        picking = true
+    }
+
     private func toggle(_ id: String) {
         if selection.contains(id) { selection.remove(id) } else { selection.insert(id) }
     }
@@ -418,12 +452,22 @@ struct LargeFilesView: View {
 struct HoldingView: View {
     @Environment(FilesModel.self) private var files
     @ViewState private var review: ReviewRequest?
+    /// A held file whose folder is gone, open in the system's file mover.
+    @ViewState private var placing: Placing?
+
+    private struct Placing {
+        let item: HoldingItem
+        let url: URL
+    }
 
     var body: some View {
         content
             .navigationTitle(Copy.Files.holdingTitle)
             .inlineNavigationTitle()
             .reviewSheet($review)
+            .fileMover(isPresented: isPlacing, file: placing?.url) { result in
+                finishPlacing(movedTo: try? result.get())
+            }
             .actionBar(secondary: putAllBack, primary: emptyHolding)
     }
 
@@ -470,30 +514,81 @@ struct HoldingView: View {
 
     private func row(_ item: HoldingItem) -> some View {
         let location = files.location(of: item)
-        return HStack(alignment: .top, spacing: Space.m) {
-            FileTile(name: item.name)
-            FileDetails(name: item.name, location: Copy.Files.from(location), bytes: item.bytes, date: Copy.Files.movedAt(item.movedAt))
+        let folderGone = files.needsPlace.contains(item.id)
+        let putBackTitle = folderGone ? Copy.Files.chooseWhere : Copy.Files.putBack
+        return VStack(alignment: .leading, spacing: Space.s) {
+            HStack(alignment: .top, spacing: Space.m) {
+                FileTile(name: item.name)
+                FileDetails(name: item.name, location: Copy.Files.from(location), bytes: item.bytes, date: Copy.Files.movedAt(item.movedAt))
+            }
+            if folderGone {
+                Button { place(item) } label: {
+                    Label(Copy.Files.chooseWhere, systemImage: "folder.badge.questionmark")
+                        .font(.subheadline.weight(.semibold))
+                        .foregroundStyle(Palette.accent)
+                        .frame(minHeight: 44)
+                        .contentShape(Rectangle())
+                }
+                .buttonStyle(.borderless)
+                .padding(.leading, 36 + Space.m)
+            }
         }
         .padding(.vertical, Space.xs)
         .frame(minHeight: 44)
         .accessibilityElement(children: .ignore)
         .accessibilityLabel(Copy.Files.heldRowLabel(item, folder: location))
+        .accessibilityValue(folderGone ? Copy.Files.folderGone : "")
         .swipeActions(edge: .leading) {
-            Button(Copy.Files.putBack) { Task { await files.putBack(item) } }
+            Button(putBackTitle) { putBack(item) }
                 .tint(Palette.accent)
         }
         .swipeActions(edge: .trailing) {
             Button(Copy.Files.deleteNow) { review = deleteRequest([item]) }
                 .tint(Palette.remove)
         }
-        .accessibilityAction(named: Copy.Files.putBack) { Task { await files.putBack(item) } }
+        .accessibilityAction(named: putBackTitle) { putBack(item) }
         .accessibilityAction(named: Copy.Files.deleteNow) { review = deleteRequest([item]) }
+    }
+
+    // MARK: Putting back
+
+    /// Puts a file back where it was. When its folder is gone, the file mover asks where.
+    private func putBack(_ item: HoldingItem) {
+        guard !files.needsPlace.contains(item.id) else {
+            place(item)
+            return
+        }
+        Task {
+            await files.putBack(item)
+            if files.needsPlace.contains(item.id) { place(item) }
+        }
+    }
+
+    private func place(_ item: HoldingItem) {
+        guard placing == nil else { return }
+        Task {
+            if let url = await files.beginPlacing(item) { placing = Placing(item: item, url: url) }
+        }
+    }
+
+    private var isPlacing: Binding<Bool> {
+        Binding(get: { placing != nil }, set: { if !$0 { finishPlacing(movedTo: nil) } })
+    }
+
+    /// The mover closed, moved or not; the model checks which.
+    private func finishPlacing(movedTo destination: URL?) {
+        guard let current = placing else { return }
+        placing = nil
+        Task { await files.endPlacing(current.item, movedTo: destination) }
     }
 
     private var putAllBack: BarAction? {
         guard !files.held.isEmpty else { return nil }
         return BarAction(title: Copy.Files.putAllBack, isEnabled: !files.isBusy) {
-            Task { await files.putAllBack() }
+            Task {
+                await files.putAllBack()
+                if let first = files.held.first(where: { files.needsPlace.contains($0.id) }) { place(first) }
+            }
         }
     }
 
@@ -505,12 +600,24 @@ struct HoldingView: View {
     }
 
     private func deleteRequest(_ items: [HoldingItem]) -> ReviewRequest {
+        Self.deleteRequest(items, in: files)
+    }
+
+    /// The review before deleting held files for good: what goes, that nothing outside Holding
+    /// changes, and that it can't be undone (and leaves the user's other devices too, for
+    /// iCloud Drive).
+    static func deleteRequest(_ items: [HoldingItem], in files: FilesModel, iCloud: Bool? = nil) -> ReviewRequest {
         let isAll = items.count == files.held.count
+        let iCloud = iCloud ?? items.contains(where: files.isInICloudDrive)
         return ReviewRequest(
             title: Copy.Files.removeTitle(items.count),
             removing: items.map { .file(id: $0.id.uuidString, name: $0.name, bytes: $0.bytes) },
             staying: [],
-            reason: Reason(why: Copy.Files.whyDelete(items.count), keptSafe: Copy.Files.keptSafeDelete, undo: Copy.Reason.cantBeUndone),
+            reason: Reason(
+                why: Copy.Files.whyDelete(items.count),
+                keptSafe: Copy.Files.keptSafeDelete,
+                undo: Copy.Files.undoDelete(iCloud: iCloud)
+            ),
             confirmTitle: Copy.Files.deleteButton(items.count),
             confirm: {
                 if isAll { await files.emptyHolding() } else { await files.delete(items) }

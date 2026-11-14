@@ -58,6 +58,9 @@ extension Copy {
         static let removeFolder = "Stop checking"
         static let available = "Checked each time"
         static let unavailable = "Can't be opened. Choose it again."
+        static func unavailableNote(_ name: String) -> String {
+            "Can't open \(name), so it wasn't checked. Choose it again to check it."
+        }
         static let foldersFooter = "Stop checking a folder and any of its files in Holding go back where they were first."
         static let noFoldersYet = "No folders chosen yet."
         static func folderLabel(_ name: String, available: Bool) -> String {
@@ -72,9 +75,14 @@ extension Copy {
         // MARK: Duplicate files
 
         static let duplicatesTitle = Home.duplicateFiles
-        static func duplicatesSummary(sets: Int, extras: Int, bytes: Int64) -> String {
-            sets == 0 ? Empty.allTidy : "\(Copy.sets(sets)) · \(extraCopies(extras)) · \(Copy.bytes(bytes))"
+        /// `sureNothing` is false when the check didn't see the folders, so an empty list
+        /// can't be called "All tidy".
+        static func duplicatesSummary(sets: Int, extras: Int, bytes: Int64, sureNothing: Bool = true) -> String {
+            guard sets > 0 else { return sureNothing ? Empty.allTidy : notChecked }
+            return "\(Copy.sets(sets)) · \(extraCopies(extras)) · \(Copy.bytes(bytes))"
         }
+        /// The headline when the folders couldn't be checked; the error below says why.
+        static let notChecked = "Not checked"
         static func noDuplicates(folders: Int) -> String {
             "No identical files in \(count(folders, "folder", "folders"))."
         }
@@ -89,7 +97,15 @@ extension Copy {
         static let movingSection = "Moving to Holding"
         static let stayingSection = "Staying"
         static let keepThisInstead = "Keep this instead"
+        static let keepThisCopyInstead = "Keep this copy instead"
         static func keepThisInsteadHint(_ name: String) -> String { "Keeps this copy and moves \u{201C}\(name)\u{201D} instead." }
+        /// What happens to a copy, read after its name by VoiceOver.
+        static let keepingValue = "Keeping"
+        static let movingValue = "Moving to Holding"
+        static let stayingValue = "Staying, changed recently"
+        static func copyRowLabel(_ item: FileItem, folder: String) -> String {
+            "\(item.name), in \(folder), \(Copy.bytes(item.bytes)), changed \(day(item.modified))"
+        }
         static func keeperChanged(_ name: String) -> String { "Keeping \u{201C}\(name)\u{201D}." }
         static let changedRecently = "Changed recently, so it stays"
         static func moveButton(_ n: Int) -> String { "Move \(n.formatted()) to Holding" }
@@ -111,8 +127,9 @@ extension Copy {
         // MARK: Large files
 
         static let largeTitle = Home.largeFiles
-        static func largeSummary(_ n: Int, bytes: Int64, minimum: Int64) -> String {
-            n == 0 ? "Nothing over \(Copy.bytes(minimum))" : "\(files(n)) over \(Copy.bytes(minimum)) · \(Copy.bytes(bytes))"
+        static func largeSummary(_ n: Int, bytes: Int64, minimum: Int64, sureNothing: Bool = true) -> String {
+            guard n > 0 else { return sureNothing ? "Nothing over \(Copy.bytes(minimum))" : notChecked }
+            return "\(files(n)) over \(Copy.bytes(minimum)) · \(Copy.bytes(bytes))"
         }
         static func noLargeFiles(minimum: Int64) -> String { "No files over \(Copy.bytes(minimum))." }
         static let moveToHolding = "Move to Holding"
@@ -148,12 +165,20 @@ extension Copy {
         static func whyDelete(_ n: Int) -> String {
             "\(n == 1 ? "It's" : "They're") in Holding, and you asked to delete \(n == 1 ? "it" : "them")."
         }
-        static let keptSafeDelete = "Only files in Holding are deleted. The copies you kept stay."
+        static let keptSafeDelete = "Only the files listed here are deleted. Nothing outside Holding changes."
+        static let iCloudDelete = "Files in iCloud Drive are also removed from your other devices."
+        static func undoDelete(iCloud: Bool) -> String {
+            iCloud ? "\(Copy.Reason.cantBeUndone) \(iCloudDelete)" : Copy.Reason.cantBeUndone
+        }
+        static let chooseWhere = "Choose where to put it back"
+        static let chooseWhereHint = "Opens the file mover, because the folder it came from is gone."
+        static let folderGone = "Its folder is gone"
 
         // MARK: Notices
 
         static func moved(_ n: Int) -> String { "Moved \(files(n)) to Holding." }
         static func putBackDone(_ n: Int) -> String { "Put back \(files(n))." }
+        static func placed(_ name: String, in folder: String) -> String { "Put \(name) in \(folder)." }
         static func deleted(_ n: Int, bytes: Int64, iCloud: Bool) -> String {
             iCloud ? "Deleted \(files(n)). Removed from iCloud Drive." : "Deleted \(files(n)). \(Copy.bytes(bytes)) is free again."
         }
@@ -165,7 +190,7 @@ extension Copy {
         static func error(_ error: FilesError) -> String {
             switch error {
             case .notEnoughSpace(let name): "Couldn't move \(name). The iPhone is full."
-            case .originalFolderMissing(let name, let folder): "Couldn't put back \(name). Its folder \(folder) is gone, so it's still in Holding."
+            case .originalFolderMissing(let name, let folder): "Couldn't put back \(name). Its folder \(folder) is gone, so it's still in Holding. Choose where to put it back."
             case .outsideFolder(let name): "Couldn't move \(name). It's no longer in a folder you chose."
             case .fileChanged(let name): "\(name) changed since the check, so nothing was moved. Check again to see it as it is now."
             case .unreadable(let path): "Couldn't read \(path)."

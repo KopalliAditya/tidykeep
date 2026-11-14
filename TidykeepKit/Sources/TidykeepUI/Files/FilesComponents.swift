@@ -10,19 +10,22 @@ import UniformTypeIdentifiers
 
 extension View {
     /// The system folder picker. Picked folders are remembered and checked straight away.
-    func folderPicker(isPresented: Binding<Bool>) -> some View {
-        modifier(FolderPicker(isPresented: isPresented))
+    /// With `replacing`, it's choosing again a folder that couldn't be opened: one folder,
+    /// which takes that folder's place.
+    func folderPicker(isPresented: Binding<Bool>, replacing: UUID? = nil) -> some View {
+        modifier(FolderPicker(isPresented: isPresented, replacing: replacing))
     }
 }
 
 private struct FolderPicker: ViewModifier {
     @Environment(FilesModel.self) private var files
     @Binding var isPresented: Bool
+    let replacing: UUID?
 
     func body(content: Content) -> some View {
-        content.fileImporter(isPresented: $isPresented, allowedContentTypes: [.folder], allowsMultipleSelection: true) { result in
+        content.fileImporter(isPresented: $isPresented, allowedContentTypes: [.folder], allowsMultipleSelection: replacing == nil) { result in
             if case .success(let urls) = result, !urls.isEmpty {
-                files.addFolders(urls)
+                files.addFolders(urls, replacing: replacing)
             }
         }
     }
@@ -106,7 +109,8 @@ struct FilesStatusHeader: View {
                     .font(.headline)
                     .fixedSize(horizontal: false, vertical: true)
             }
-            if files.hasChecked {
+            // With no folder opened there's nothing to account for; the note below says why.
+            if files.hasChecked, files.checkedFolderCount > 0 {
                 Button { showsCoverage = true } label: {
                     HStack(spacing: Space.s) {
                         Image(systemName: "checkmark.seal")
@@ -241,14 +245,14 @@ struct NoFoldersView: View {
     }
 }
 
-/// Folders that couldn't be opened, with a way to choose them again.
+/// Folders that couldn't be opened, each with a way to choose it again.
 struct UnavailableFoldersNote: View {
     let folders: [FilesModel.Folder]
-    let chooseAgain: () -> Void
+    let chooseAgain: (FilesModel.Folder) -> Void
 
     var body: some View {
         ForEach(folders) { folder in
-            InlineError(text: Copy.Files.error(.folderUnavailable(name: folder.name)), retry: chooseAgain)
+            InlineError(text: Copy.Files.unavailableNote(folder.name)) { chooseAgain(folder) }
         }
     }
 }
