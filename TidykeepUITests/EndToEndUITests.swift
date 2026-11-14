@@ -185,7 +185,7 @@ final class EndToEndUITests: XCTestCase {
         tidy.undoButton()?.tap()
     }
 
-    /// The other two tabs open and show their screens; Tidy comes back.
+    /// The other two tabs open and show their screens, a rule's choice sticks, and Tidy comes back.
     @MainActor
     func testHistoryAndRulesTabsOpen() throws {
         let tidy = AppDriver(self)
@@ -205,6 +205,14 @@ final class EndToEndUITests: XCTestCase {
             let coverage = tidy.element("coverage.line")
             XCTAssertFalse(coverage.exists && coverage.isHittable, "Still on Tidy after tapping \(label)")
         }
+
+        // Choosing goes back to Rules, and the choice is marked when the list opens again.
+        tidy.tap("rules.choice.videoMinimum")
+        tidy.tap("rules.option.1")
+        XCTAssertTrue(tidy.until(10) { !tidy.element("rules.option.1").exists }, "Choosing didn't go back to Rules")
+        tidy.tap("rules.choice.videoMinimum")
+        XCTAssertTrue(tidy.until(10) { tidy.element("rules.option.1").isSelected }, "The choice didn't stick")
+        tidy.back()
         tidy.selectTab("tab.tidy", label: "Tidy")
         XCTAssertTrue(tidy.element("coverage.line").waitForExistence(timeout: 10), "Tidy didn't come back")
     }

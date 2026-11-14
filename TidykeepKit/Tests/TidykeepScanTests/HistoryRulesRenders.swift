@@ -33,6 +33,7 @@ import TidykeepCore
         state.photos.refresh()
         await RenderHarness.render(RulesView(), named: "rules", state: state, height: 2200)
         await RenderHarness.render(RulesView().dynamicTypeSize(.accessibility3), named: "rules-ax", state: state, height: 1400)
+        await RenderHarness.render(RuleChoiceView(choice: .sensitivity), named: "rule-choice", state: state)
         await RenderHarness.render(AlbumPickerView(), named: "albums", state: state)
         await RenderHarness.render(AboutView(), named: "about", state: state, height: 1500)
 
@@ -200,6 +201,26 @@ enum HistoryDemo {
         #expect(relaunched.sensitivity == .loose)
         #expect(relaunched.videoMinimum == 300)
         #expect(relaunched.largeFileMinimum == 500_000_000)
+    }
+
+    /// Each rule lists its choices in order with the one in effect marked, and choosing one
+    /// sets the rule.
+    @Test func ruleChoicesSetTheRules() throws {
+        let preferences = Preferences(defaults: freshDefaults())
+        for choice in RuleChoice.allCases {
+            let options = choice.options(in: preferences)
+            #expect(options.count > 1, "\(choice)")
+            #expect(options.filter(\.isChosen).map(\.title) == [choice.current(in: preferences)], "\(choice)")
+            let last = try #require(options.last)
+            #expect(!last.isChosen, "\(choice)")
+            last.choose()
+            #expect(choice.current(in: preferences) == last.title, "\(choice)")
+            #expect(choice.options(in: preferences).filter(\.isChosen).map(\.id) == [last.id], "\(choice)")
+        }
+        #expect(preferences.scope == ScanScope.allCases.last)
+        #expect(preferences.sensitivity == Sensitivity.allCases.last)
+        #expect(preferences.videoMinimum == Preferences.videoMinimums.last)
+        #expect(preferences.largeFileMinimum == Preferences.largeFileMinimums.last)
     }
 
     @Test func reviewAgainFromHistoryUndoesKeepAll() async throws {

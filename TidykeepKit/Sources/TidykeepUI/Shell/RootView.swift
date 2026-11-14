@@ -78,6 +78,7 @@ struct RouteDestination: View {
         case .contactMerge(let id): ContactMergeView(groupID: id)
         case .receipt(let id): ReceiptView(receiptID: id)
         case .albums: AlbumPickerView()
+        case .ruleChoice(let choice): RuleChoiceView(choice: choice)
         case .about: AboutView()
         case .privacyPolicy: TextDocumentView(resource: "PrivacyPolicy", title: "Privacy Policy")
         case .acknowledgements: TextDocumentView(resource: "Acknowledgements", title: "Acknowledgements")

@@ -21,9 +21,15 @@ enum Route: Hashable, Codable {
     // History and Rules
     case receipt(UUID)
     case albums
+    case ruleChoice(RuleChoice)
     case about
     case privacyPolicy
     case acknowledgements
+}
+
+/// A rule with a few choices, each listed on a screen of its own from Rules.
+enum RuleChoice: String, Hashable, Codable, CaseIterable {
+    case scope, sensitivity, videoMinimum, largeFileMinimum
 }
 
 enum AppTab: String, Hashable {

@@ -108,26 +108,7 @@ struct RulesView: View {
 
     private var whatToLookAt: some View {
         Section {
-            Picker(Copy.Rules.photosFrom, selection: Binding(get: { preferences.scope }, set: { preferences.scope = $0 })) {
-                ForEach(ScanScope.allCases) { Text($0.title).tag($0) }
-            }
-            .rowPickerStyle()
-            .accessibilityIdentifier("rules.picker.scope")
-            Picker(Copy.Rules.howAlike, selection: Binding(get: { preferences.sensitivity }, set: { preferences.sensitivity = $0 })) {
-                ForEach(Sensitivity.allCases) { Text($0.title).tag($0) }
-            }
-            .rowPickerStyle()
-            .accessibilityIdentifier("rules.picker.sensitivity")
-            Picker(Copy.Rules.bigVideos, selection: Binding(get: { preferences.videoMinimum }, set: { preferences.videoMinimum = $0 })) {
-                ForEach(Preferences.videoMinimums, id: \.self) { Text(Copy.duration($0)).tag($0) }
-            }
-            .rowPickerStyle()
-            .accessibilityIdentifier("rules.picker.videos")
-            Picker(Copy.Rules.largeFiles, selection: Binding(get: { preferences.largeFileMinimum }, set: { preferences.largeFileMinimum = $0 })) {
-                ForEach(Preferences.largeFileMinimums, id: \.self) { Text(Copy.bytes($0)).tag($0) }
-            }
-            .rowPickerStyle()
-            .accessibilityIdentifier("rules.picker.files")
+            ForEach(RuleChoice.allCases, id: \.self) { ChoiceRow(choice: $0) }
         } header: {
             Text(Copy.Rules.whatToLookAt).foregroundStyle(Palette.secondaryText)
         } footer: {
@@ -228,6 +209,133 @@ private struct SwitchRow: View {
                     .toggleStyle(.switch)
                     .accessibilityIdentifier(identifier)
             }
+        }
+    }
+}
+
+/// A rule with a few choices: its name and the one in effect, opening the list of choices.
+/// Built like the Albums row rather than as a picker, whose list style draws the choice in a
+/// system grey too faint for small text; this one wraps under the name at large text sizes.
+private struct ChoiceRow: View {
+    let choice: RuleChoice
+    @Environment(Preferences.self) private var preferences
+
+    var body: some View {
+        NavigationLink(value: Route.ruleChoice(choice)) {
+            LabeledContent(choice.title) {
+                Text(choice.current(in: preferences)).foregroundStyle(Palette.secondaryText)
+            }
+        }
+        .accessibilityIdentifier("rules.choice.\(choice.rawValue)")
+    }
+}
+
+// MARK: - A rule's choices
+
+/// One rule's choices, with a checkmark on the one in effect. Choosing one goes back to
+/// Rules, as a picker does.
+struct RuleChoiceView: View {
+    let choice: RuleChoice
+    @Environment(Preferences.self) private var preferences
+    @Environment(\.dismiss) private var dismiss
+
+    var body: some View {
+        Form {
+            Section {
+                ForEach(choice.options(in: preferences)) { option in
+                    OptionRow(option: option) {
+                        option.choose()
+                        dismiss()
+                    }
+                }
+            } footer: {
+                Text(Copy.Rules.takesEffect).foregroundStyle(Palette.secondaryText)
+            }
+        }
+        .formStyle(.grouped)
+        .navigationTitle(choice.title)
+        .inlineNavigationTitle()
+    }
+}
+
+/// A choice, with a checkmark when it's the one in effect.
+private struct OptionRow: View {
+    let option: RuleOption
+    let choose: () -> Void
+
+    var body: some View {
+        Button(action: choose) {
+            HStack(spacing: Space.m) {
+                Text(option.title)
+                    .foregroundStyle(.primary)
+                Spacer(minLength: Space.s)
+                Image(systemName: "checkmark")
+                    .font(.body.weight(.semibold))
+                    .foregroundStyle(Palette.accent)
+                    .opacity(option.isChosen ? 1 : 0)
+                    .accessibilityHidden(true)
+            }
+            .frame(minHeight: 44)
+            .contentShape(Rectangle())
+        }
+        .rowButtonStyle()
+        .feedback(.selection, trigger: option.isChosen)
+        .accessibilityAddTraits(option.isChosen ? .isSelected : [])
+        .accessibilityIdentifier("rules.option.\(option.id)")
+    }
+}
+
+/// One of a rule's choices, and how to choose it.
+struct RuleOption: Identifiable {
+    /// Its place in the list.
+    let id: Int
+    let title: String
+    let isChosen: Bool
+    let choose: @MainActor () -> Void
+}
+
+extension RuleChoice {
+    var title: String {
+        switch self {
+        case .scope: Copy.Rules.photosFrom
+        case .sensitivity: Copy.Rules.howAlike
+        case .videoMinimum: Copy.Rules.bigVideos
+        case .largeFileMinimum: Copy.Rules.largeFiles
+        }
+    }
+
+    /// The choice in effect, as its row shows it.
+    @MainActor
+    func current(in preferences: Preferences) -> String {
+        switch self {
+        case .scope: preferences.scope.title
+        case .sensitivity: preferences.sensitivity.title
+        case .videoMinimum: Copy.duration(preferences.videoMinimum)
+        case .largeFileMinimum: Copy.bytes(preferences.largeFileMinimum)
+        }
+    }
+
+    /// Every choice in order, the one in effect marked.
+    @MainActor
+    func options(in preferences: Preferences) -> [RuleOption] {
+        switch self {
+        case .scope:
+            Self.options(ScanScope.allCases, title: \.title, current: preferences.scope) { preferences.scope = $0 }
+        case .sensitivity:
+            Self.options(Sensitivity.allCases, title: \.title, current: preferences.sensitivity) { preferences.sensitivity = $0 }
+        case .videoMinimum:
+            Self.options(Preferences.videoMinimums, title: Copy.duration, current: preferences.videoMinimum) { preferences.videoMinimum = $0 }
+        case .largeFileMinimum:
+            Self.options(Preferences.largeFileMinimums, title: Copy.bytes, current: preferences.largeFileMinimum) { preferences.largeFileMinimum = $0 }
+        }
+    }
+
+    @MainActor
+    private static func options<Value: Equatable>(
+        _ values: [Value], title: (Value) -> String, current: Value, choose: @escaping @MainActor (Value) -> Void
+    ) -> [RuleOption] {
+        values.enumerated().map { index, value in
+            RuleOption(id: index, title: title(value), isChosen: value == current) { choose(value) }
         }
     }
 }
@@ -454,18 +562,6 @@ extension View {
         self
         #else
         buttonStyle(.plain)
-        #endif
-    }
-
-    /// Pickers in a form row: on iPhone a row that opens a list of the choices, as in Settings,
-    /// so at large text sizes a long choice like "Only near-identical" wraps under the name
-    /// instead of being cut short in a menu. The Mac keeps its menu.
-    @ViewBuilder
-    func rowPickerStyle() -> some View {
-        #if os(iOS)
-        pickerStyle(.navigationLink)
-        #else
-        self
         #endif
     }
 }

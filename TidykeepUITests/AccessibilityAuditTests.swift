@@ -2,7 +2,7 @@ import UIKit
 import XCTest
 
 /// Xcode's accessibility audit on each main screen: Home, Similar Shots, a group, Review,
-/// Holding, a contact merge, History and Rules. Contrast, hit regions, Dynamic Type,
+/// Holding, a contact merge, History, Rules and a rule's choices. Contrast, hit regions, Dynamic Type,
 /// clipped text, missing labels and the rest (`.all`).
 ///
 /// Every issue is listed in an "a11y-<screen>" attachment. TK_A11Y_AUDIT (set by CI,
@@ -75,11 +75,15 @@ final class AccessibilityAuditTests: XCTestCase {
         tidy.selectTab("tab.rules", label: "Rules")
         attach(text: tidy.app.debugDescription, named: "tree-rules")
         try audit("rules", tidy)
+
+        tidy.open("rules.choice.sensitivity")
+        XCTAssertTrue(tidy.element("rules.option.0").waitForExistence(timeout: 10), "No choices for How alike")
+        try audit("rule-choice", tidy)
         failOnAppIssues()
     }
 
     /// The Rules rows with the longest words, at the largest text size: the switches, which go
-    /// under their words there, and the pickers, whose choices wrap under their names. In strict
+    /// under their words there, and the rules with choices, whose choice wraps under the name. In strict
     /// mode, fails if a switch row isn't more than twice its default height, or the clipped text
     /// audit finds anything in a row. That audit sees only what VoiceOver
     /// sees, one switch per switch row, so a screenshot of each row shows its words; the element
@@ -92,8 +96,8 @@ final class AccessibilityAuditTests: XCTestCase {
         // A failed check shouldn't stop the rest: the screenshots and the tree say why.
         continueAfterFailure = true
         let switches = ["rules.switch.screenshots", "rules.switch.recentFiles"]
-        let pickers = ["rules.picker.scope", "rules.picker.sensitivity", "rules.picker.videos", "rules.picker.files"]
-        for (index, identifier) in (switches + pickers).enumerated() {
+        let choices = ["scope", "sensitivity", "videoMinimum", "largeFileMinimum"].map { "rules.choice.\($0)" }
+        for (index, identifier) in (switches + choices).enumerated() {
             let row = tidy.element(identifier)
             guard tidy.reveal(row) else {
                 XCTFail("\(identifier) never came on screen")

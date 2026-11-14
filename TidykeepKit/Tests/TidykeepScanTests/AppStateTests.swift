@@ -265,7 +265,7 @@ import TidykeepVision
             .similar, .similarGroup(group.id), .copies, .copySet(group.id), .screenshots, .videos, .video("none"),
             .duplicateFiles, .duplicateFileSet("none"), .largeFiles, .holding, .contacts, .contactMerge("none"),
             .receipt(receipt.id), .albums, .about, .privacyPolicy, .acknowledgements,
-        ]
+        ] + RuleChoice.allCases.map { .ruleChoice($0) }
         var screens: [AnyView] = [AnyView(TidyHomeView()), AnyView(OnboardingView()), AnyView(CoverageSheet(coverage: state.photos.coverage))]
         screens += routes.map { AnyView(RouteDestination(route: $0)) }
         for screen in screens {
