@@ -148,8 +148,7 @@ final class AccessibilityAuditTests: XCTestCase {
         RunLoop.current.run(until: Date().addingTimeInterval(1.0))
         let chrome = systemChrome(in: tidy.app)
         let barTop = bottomBarTop(in: tidy.app)
-        var found: [String] = []
-        var details: [String] = []
+        var found: [(what: String, detail: String, clipped: Bool)] = []
         var ignored: [String] = []
 
         // Returning true marks an issue as handled, so the audit itself never fails the test;
@@ -161,15 +160,30 @@ final class AccessibilityAuditTests: XCTestCase {
             } else if let ratio = Self.measuredBarButtonContrast(issue), ratio >= 4.5 {
                 ignored.append("\(what) [ignored: measured \(String(format: "%.1f", ratio)):1 inside the button]")
             } else {
-                found.append(what)
-                details.append(Self.position(of: issue) + issue.detailedDescription)
+                found.append((what, Self.position(of: issue) + issue.detailedDescription, issue.auditType == .textClipped))
             }
             return true
         }
-        appIssues += found.map { "\(screen): \($0)" }
+
+        // The clipped text check grows the text and looks again, and on some CI runs it reports
+        // rows that fit at every size, such as Albums with its one word "None", while the same
+        // rows pass on others. So clipped text counts only if a second check, straight after,
+        // finds it too; the note lists what only the first one found.
+        if found.contains(where: { $0.clipped }) {
+            var again: Set<String> = []
+            try tidy.app.performAccessibilityAudit(for: .textClipped) { issue in
+                again.insert(Self.describe(issue))
+                return true
+            }
+            for issue in found where issue.clipped && !again.contains(issue.what) {
+                ignored.append("\(issue.what) [ignored: not found by a second clipped text check]")
+            }
+            found.removeAll { $0.clipped && !again.contains($0.what) }
+        }
+        appIssues += found.map { "\(screen): \($0.what)" }
 
         var note = "\(screen): \(found.count) issue(s), bottom bar at y \(barTop.map { "\(Int($0))" } ?? "none")\n"
-            + zip(found, details).map { "- \($0)\n    \($1)" }.joined(separator: "\n")
+            + found.map { "- \($0.what)\n    \($0.detail)" }.joined(separator: "\n")
         if !ignored.isEmpty {
             note += "\nIgnored:\n" + ignored.map { "- \($0)" }.joined(separator: "\n")
         }

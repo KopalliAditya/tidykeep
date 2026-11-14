@@ -279,7 +279,6 @@ private struct OptionRow: View {
             .contentShape(Rectangle())
         }
         .rowButtonStyle()
-        .feedback(.selection, trigger: option.isChosen)
         .accessibilityAddTraits(option.isChosen ? .isSelected : [])
         .accessibilityIdentifier("rules.option.\(option.id)")
     }

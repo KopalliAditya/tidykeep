@@ -248,6 +248,7 @@ final class AppDriver {
     /// Rows and cards scroll under the floating bars; buttons in the bars don't.
     private static func isContent(_ identifier: String) -> Bool {
         identifier.contains(".row.") || identifier.contains(".tile.") || identifier.hasPrefix("home.")
+            || identifier.hasPrefix("rules.choice.") || identifier.hasPrefix("rules.option.")
     }
 
     /// Scrolls until `target` is on screen and clear of the bottom bars. Lists load rows
