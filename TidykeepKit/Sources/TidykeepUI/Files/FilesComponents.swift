@@ -172,7 +172,7 @@ struct FilesCoverageSheet: View {
                     }
                     row(Copy.Files.keptByRule, count: files.keptByRule, detail: Copy.Files.keptByRuleExplanation(days: files.recentDays))
                 } footer: {
-                    Text(Copy.Files.coverageFooter)
+                    Text(Copy.Files.coverageFooter).foregroundStyle(Palette.secondaryText)
                 }
             }
             .groupedList()
@@ -190,7 +190,7 @@ struct FilesCoverageSheet: View {
     private func row(_ title: String, count: Int, detail: String) -> some View {
         VStack(alignment: .leading, spacing: Space.xs) {
             LabeledContent(title) {
-                Text(count.formatted()).monospacedDigit()
+                Text(count.formatted()).monospacedDigit().foregroundStyle(Palette.secondaryText)
             }
             .font(.body.weight(.medium))
             Text(detail)

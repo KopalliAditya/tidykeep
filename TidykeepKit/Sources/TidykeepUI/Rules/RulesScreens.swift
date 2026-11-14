@@ -37,48 +37,33 @@ struct RulesView: View {
     private var alwaysKeep: some View {
         Section {
             LabeledContent {
-                Text(Copy.Rules.always)
+                Text(Copy.Rules.always).foregroundStyle(Palette.secondaryText)
             } label: {
                 Label(Copy.Rules.favorites, systemImage: "heart")
             }
             LabeledContent {
-                Text(Copy.Rules.always)
+                Text(Copy.Rules.always).foregroundStyle(Palette.secondaryText)
             } label: {
                 Label(Copy.Rules.edited, systemImage: "slider.horizontal.3")
             }
             LabeledContent {
-                Text(Copy.Rules.neverChecked)
+                Text(Copy.Rules.neverChecked).foregroundStyle(Palette.secondaryText)
             } label: {
                 Label(Copy.Rules.hidden, systemImage: "eye.slash")
             }
             NavigationLink(value: Route.albums) {
                 LabeledContent {
-                    Text(Copy.Rules.albumsChosen(chosenAlbumCount))
+                    Text(Copy.Rules.albumsChosen(chosenAlbumCount)).foregroundStyle(Palette.secondaryText)
                 } label: {
                     Label(Copy.Rules.albums, systemImage: "rectangle.stack")
                 }
             }
-            Toggle(isOn: keepScreenshotsInAlbums) {
-                wrapping(Copy.Rules.screenshotsInAlbums, systemImage: "camera.viewfinder")
-            }
-            Toggle(isOn: hideRecentFiles) {
-                wrapping(Copy.Rules.recentFiles, systemImage: "doc.badge.clock")
-            }
+            SwitchRow(title: Copy.Rules.screenshotsInAlbums, systemImage: "camera.viewfinder", isOn: keepScreenshotsInAlbums)
+            SwitchRow(title: Copy.Rules.recentFiles, systemImage: "doc.badge.clock", isOn: hideRecentFiles)
         } header: {
-            Text(Copy.Rules.alwaysKeep)
+            Text(Copy.Rules.alwaysKeep).foregroundStyle(Palette.secondaryText)
         } footer: {
-            Text(Copy.Rules.alwaysKeepFooter)
-        }
-    }
-
-    /// A toggle's label that wraps at large text sizes instead of being cut off beside the switch.
-    private func wrapping(_ title: String, systemImage: String) -> some View {
-        Label {
-            Text(title)
-                .lineLimit(nil)
-                .fixedSize(horizontal: false, vertical: true)
-        } icon: {
-            Image(systemName: systemImage)
+            Text(Copy.Rules.alwaysKeepFooter).foregroundStyle(Palette.secondaryText)
         }
     }
 
@@ -130,9 +115,9 @@ struct RulesView: View {
                 ForEach(Preferences.largeFileMinimums, id: \.self) { Text(Copy.bytes($0)).tag($0) }
             }
         } header: {
-            Text(Copy.Rules.whatToLookAt)
+            Text(Copy.Rules.whatToLookAt).foregroundStyle(Palette.secondaryText)
         } footer: {
-            Text(Copy.Rules.takesEffect)
+            Text(Copy.Rules.takesEffect).foregroundStyle(Palette.secondaryText)
         }
     }
 
@@ -142,9 +127,9 @@ struct RulesView: View {
         Section {
             Toggle(Copy.Rules.haptics, isOn: $hapticsOn)
         } header: {
-            Text(Copy.Rules.haptics)
+            Text(Copy.Rules.haptics).foregroundStyle(Palette.secondaryText)
         } footer: {
-            Text(Copy.Rules.hapticsFooter)
+            Text(Copy.Rules.hapticsFooter).foregroundStyle(Palette.secondaryText)
         }
     }
 
@@ -174,9 +159,9 @@ struct RulesView: View {
                     Text(Copy.Rules.clearMessage)
                 }
         } header: {
-            Text(Copy.Rules.savedData)
+            Text(Copy.Rules.savedData).foregroundStyle(Palette.secondaryText)
         } footer: {
-            Text(Copy.Rules.savedDataFooter)
+            Text(Copy.Rules.savedDataFooter).foregroundStyle(Palette.secondaryText)
         }
     }
 
@@ -188,7 +173,31 @@ struct RulesView: View {
                 Label(Copy.Rules.aboutApp(), systemImage: "info.circle")
             }
         } header: {
-            Text(Copy.Rules.about)
+            Text(Copy.Rules.about).foregroundStyle(Palette.secondaryText)
+        }
+    }
+}
+
+/// A switch with an icon and a label that wraps at large text sizes. A `Toggle` given a `Label`
+/// cuts its text off at the largest sizes, so the row lays the label out itself, and VoiceOver
+/// reads the whole row as one switch.
+private struct SwitchRow: View {
+    let title: String
+    let systemImage: String
+    @Binding var isOn: Bool
+
+    var body: some View {
+        HStack(spacing: Space.m) {
+            Label {
+                Text(title).fixedSize(horizontal: false, vertical: true)
+            } icon: {
+                Image(systemName: systemImage)
+            }
+            Spacer(minLength: 0)
+            Toggle(title, isOn: $isOn).labelsHidden()
+        }
+        .accessibilityRepresentation {
+            Toggle(title, isOn: $isOn)
         }
     }
 }
@@ -233,7 +242,7 @@ struct AlbumPickerView: View {
                     }
                 }
             } footer: {
-                Text(Copy.Rules.albumsFooter)
+                Text(Copy.Rules.albumsFooter).foregroundStyle(Palette.secondaryText)
             }
         }
         .formStyle(.grouped)
@@ -333,7 +342,7 @@ struct AboutView: View {
                     Label(Copy.About.acknowledgements, systemImage: "doc.text")
                 }
             } header: {
-                Text(Copy.About.documents)
+                Text(Copy.About.documents).foregroundStyle(Palette.secondaryText)
             }
             Section {
                 Label {
@@ -345,13 +354,13 @@ struct AboutView: View {
                 .accessibilityElement(children: .combine)
                 .accessibilityLabel(Copy.About.supportLabel())
             } header: {
-                Text(Copy.About.support)
+                Text(Copy.About.support).foregroundStyle(Palette.secondaryText)
             } footer: {
-                Text(Copy.About.supportFooter)
+                Text(Copy.About.supportFooter).foregroundStyle(Palette.secondaryText)
             }
             Section {
                 LabeledContent(Copy.Rules.version) {
-                    Text(AppInfo.version).monospacedDigit()
+                    Text(AppInfo.version).monospacedDigit().foregroundStyle(Palette.secondaryText)
                 }
             }
         }
@@ -399,7 +408,7 @@ struct AboutView: View {
                 .accessibilityElement(children: .combine)
             }
         } header: {
-            Text(title)
+            Text(title).foregroundStyle(Palette.secondaryText)
         }
     }
 }

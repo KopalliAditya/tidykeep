@@ -330,9 +330,10 @@ enum Copy {
     // MARK: Notices
 
     enum Notices {
-        static func removedPhotos(_ n: Int) -> String { "Removed \(photos(n)). They're in Recently Deleted in Photos for 30 days." }
-        static func removedScreenshots(_ n: Int) -> String { "Removed \(screenshots(n)). They're in Recently Deleted in Photos for 30 days." }
-        static func removedVideos(_ n: Int) -> String { "Removed \(videos(n)). They're in Recently Deleted in Photos for 30 days." }
+        static func removedPhotos(_ n: Int) -> String { "Removed \(photos(n)). \(inRecentlyDeleted(n))" }
+        static func removedScreenshots(_ n: Int) -> String { "Removed \(screenshots(n)). \(inRecentlyDeleted(n))" }
+        static func removedVideos(_ n: Int) -> String { "Removed \(videos(n)). \(inRecentlyDeleted(n))" }
+        private static func inRecentlyDeleted(_ n: Int) -> String { "\(n == 1 ? "It's" : "They're") in Recently Deleted in Photos for 30 days." }
         static func mergedSets(_ sets: Int, copies: Int) -> String {
             "Merged \(Copy.sets(sets)). The \(Copy.copies(copies)) removed \(copies == 1 ? "is" : "are") in Recently Deleted for 30 days."
         }

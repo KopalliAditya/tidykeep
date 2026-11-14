@@ -385,7 +385,11 @@ import TidykeepVision
         #expect(Copy.Scan.progress(ScanProgress()) == "Getting ready")
         #expect(Copy.Coverage.line(checked: 10, skipped: 0) == "Checked 10 photos")
         #expect(Copy.Coverage.line(checked: 10, skipped: 2) == "Checked 10 photos · 2 skipped")
-        #expect(Copy.Notices.removedPhotos(1) == "Removed 1 photo. They're in Recently Deleted in Photos for 30 days.")
+        #expect(Copy.Notices.removedPhotos(1) == "Removed 1 photo. It's in Recently Deleted in Photos for 30 days.")
+        #expect(Copy.Notices.removedVideos(2) == "Removed 2 videos. They're in Recently Deleted in Photos for 30 days.")
+        #expect(Copy.Similar.keptOnlyThis(alsoAlwaysKept: 0) == "Only this one is kept")
+        #expect(Copy.Similar.keptOnlyThis(alsoAlwaysKept: 1) == "Only this one is kept, plus 1 photo that's always kept")
+        #expect(Copy.Similar.keptOnlyThis(alsoAlwaysKept: 2) == "Only this one is kept, plus 2 photos that are always kept")
     }
 
     @Test func receiptsReadAsSentences() {

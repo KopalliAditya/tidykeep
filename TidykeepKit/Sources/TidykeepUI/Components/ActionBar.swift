@@ -10,9 +10,9 @@ struct BarAction {
     var action: () -> Void
 }
 
-/// The bottom bar: at most one secondary action and one prominent action, floating on glass
-/// above the content. Labels wrap rather than cut off, and at accessibility text sizes the
-/// buttons stack, primary last.
+/// The bottom bar: at most one secondary action and one prominent action, floating above the
+/// content. Labels wrap rather than cut off, side by side buttons are the same height, and at
+/// accessibility text sizes the buttons stack, primary last.
 struct ActionBar: View {
     var secondary: BarAction?
     var primary: BarAction?
@@ -24,10 +24,7 @@ struct ActionBar: View {
             layout {
                 if let secondary {
                     button(secondary)
-                        .buttonStyle(.glass)
-                        // Clear glass over photos or text can leave the accent label too faint,
-                        // and Reduce Transparency removes the blur, so it sits on the card colour.
-                        .background(Palette.card, in: Capsule())
+                        .buttonStyle(SecondaryBarStyle())
                         .accessibilityIdentifier("actionbar.secondary")
                 }
                 if let primary {
@@ -36,6 +33,7 @@ struct ActionBar: View {
                         .accessibilityIdentifier("actionbar.primary")
                 }
             }
+            .fixedSize(horizontal: false, vertical: true)
         }
         .controlSize(.large)
         .tint(Palette.accent)
@@ -57,7 +55,7 @@ struct ActionBar: View {
             }
             .font(.body.weight(prominent ? .semibold : .regular))
             .foregroundStyle(prominent ? Palette.onAccent : Palette.accent)
-            .frame(maxWidth: .infinity, minHeight: 30)
+            .frame(maxWidth: .infinity, minHeight: 30, maxHeight: .infinity)
         }
         .disabled(!item.isEnabled || item.isBusy)
         .accessibilityHint(item.hint ?? "")
@@ -95,6 +93,24 @@ extension View {
         #else
         buttonStyle(MacProminentStyle())
         #endif
+    }
+}
+
+/// The secondary bar button: the accent on a capsule of the card colour, as tall as the glass
+/// button beside it. Clear glass takes its colour from what scrolls under it, which over photos
+/// can leave the accent label too faint to read.
+private struct SecondaryBarStyle: ButtonStyle {
+    @Environment(\.isEnabled) private var isEnabled
+
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .padding(.vertical, 14)
+            .padding(.horizontal, Space.l)
+            .background(Capsule().fill(Palette.card))
+            .overlay(Capsule().strokeBorder(.separator, lineWidth: 0.5))
+            .shadow(color: .black.opacity(0.1), radius: 6, y: 2)
+            .contentShape(Capsule())
+            .opacity(isEnabled ? (configuration.isPressed ? 0.7 : 1) : 0.4)
     }
 }
 

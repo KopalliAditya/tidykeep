@@ -38,9 +38,9 @@ struct FoldersSection: View {
             .accessibilityHint(Copy.Files.chooseFoldersHint)
             .accessibilityIdentifier("folders.add")
         } header: {
-            Text(Copy.Files.foldersHeader)
+            Text(Copy.Files.foldersHeader).foregroundStyle(Palette.secondaryText)
         } footer: {
-            Text(Copy.Files.foldersFooter).fixedSize(horizontal: false, vertical: true)
+            Text(Copy.Files.foldersFooter).fixedSize(horizontal: false, vertical: true).foregroundStyle(Palette.secondaryText)
         }
         .folderPicker(isPresented: $picking, replacing: choosingAgain)
         .confirmationDialog(

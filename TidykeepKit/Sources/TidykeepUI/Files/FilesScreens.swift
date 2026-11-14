@@ -69,7 +69,7 @@ struct DuplicateFilesView: View {
     @ViewBuilder
     private var ruleFooter: some View {
         if let footer = Copy.Files.recentRule(days: files.recentDays, kept: files.keptByRule) {
-            Text(footer).fixedSize(horizontal: false, vertical: true)
+            Text(footer).fixedSize(horizontal: false, vertical: true).foregroundStyle(Palette.secondaryText)
         }
     }
 
@@ -369,6 +369,7 @@ struct LargeFilesView: View {
         let rule = Copy.Files.recentRule(days: files.recentDays, kept: files.keptByRule)
         return Text([Copy.Files.largeFooter, rule].compactMap { $0 }.joined(separator: " "))
             .fixedSize(horizontal: false, vertical: true)
+            .foregroundStyle(Palette.secondaryText)
     }
 
     private func row(_ item: FileItem) -> some View {

@@ -108,10 +108,12 @@ private struct ContactGroupList: View {
                 }
             }
             ForEach(sections, id: \.reason) { section in
-                Section(Copy.Contacts.section(section.reason)) {
+                Section {
                     ForEach(section.rows, id: \.group.id) { row in
                         link(row.group, index: row.index)
                     }
+                } header: {
+                    Text(Copy.Contacts.section(section.reason)).foregroundStyle(Palette.secondaryText)
                 }
             }
             if !contacts.crossAccountGroups.isEmpty {
@@ -121,9 +123,10 @@ private struct ContactGroupList: View {
                             .accessibilityIdentifier("contacts.other.\(index)")
                     }
                 } header: {
-                    Text(Copy.Contacts.otherAccounts)
+                    Text(Copy.Contacts.otherAccounts).foregroundStyle(Palette.secondaryText)
                 } footer: {
                     Text(Copy.Contacts.otherAccountsFooter)
+                        .foregroundStyle(Palette.secondaryText)
                         .fixedSize(horizontal: false, vertical: true)
                 }
             }

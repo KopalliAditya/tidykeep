@@ -9,7 +9,9 @@ struct ContactsRulesSection: View {
 
     var body: some View {
         Section {
-            LabeledContent(Copy.Contacts.accessTitle, value: Copy.Contacts.accessValue(contacts.access, limited: contacts.isLimited, restricted: contacts.isRestricted))
+            LabeledContent(Copy.Contacts.accessTitle) {
+                Text(Copy.Contacts.accessValue(contacts.access, limited: contacts.isLimited, restricted: contacts.isRestricted)).foregroundStyle(Palette.secondaryText)
+            }
                 .accessibilityIdentifier("rules.contacts.access")
             accessButton
             Label {
@@ -23,7 +25,9 @@ struct ContactsRulesSection: View {
             }
             .accessibilityElement(children: .combine)
             .accessibilityIdentifier("rules.contacts.mycard")
-            LabeledContent(Copy.Contacts.backups, value: Copy.Contacts.backupCount(contacts.backupCount))
+            LabeledContent(Copy.Contacts.backups) {
+                Text(Copy.Contacts.backupCount(contacts.backupCount)).foregroundStyle(Palette.secondaryText)
+            }
                 .accessibilityIdentifier("rules.contacts.backups")
             if contacts.backupCount > 0 {
                 Button(Copy.Contacts.deleteBackups, role: .destructive) { confirmingDelete = true }
@@ -38,7 +42,9 @@ struct ContactsRulesSection: View {
                     }
             }
             if !contacts.keptApart.isEmpty {
-                LabeledContent(Copy.Contacts.keptApartTitle, value: Copy.Contacts.groups(contacts.keptApart.count))
+                LabeledContent(Copy.Contacts.keptApartTitle) {
+                    Text(Copy.Contacts.groups(contacts.keptApart.count)).foregroundStyle(Palette.secondaryText)
+                }
                     .accessibilityIdentifier("rules.contacts.keptApart")
                 Button(Copy.Contacts.suggestAgain) { contacts.suggestAgain() }
                     .rowButtonStyle()
@@ -46,9 +52,9 @@ struct ContactsRulesSection: View {
                     .accessibilityIdentifier("rules.contacts.suggestAgain")
             }
         } header: {
-            Text(Copy.Contacts.rulesTitle)
+            Text(Copy.Contacts.rulesTitle).foregroundStyle(Palette.secondaryText)
         } footer: {
-            Text(Copy.Contacts.rulesFooter)
+            Text(Copy.Contacts.rulesFooter).foregroundStyle(Palette.secondaryText)
         }
     }
 

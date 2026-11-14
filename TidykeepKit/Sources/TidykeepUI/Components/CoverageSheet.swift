@@ -21,6 +21,7 @@ struct CoverageSheet: View {
                             LabeledContent(Copy.Coverage.reason(reason)) {
                                 Text((coverage.skipped[reason] ?? 0).formatted())
                                     .monospacedDigit()
+                                    .foregroundStyle(Palette.secondaryText)
                             }
                             .font(.body.weight(.medium))
                             Text(Copy.Coverage.explanation(reason))
@@ -31,7 +32,7 @@ struct CoverageSheet: View {
                         .accessibilityElement(children: .combine)
                     }
                 } footer: {
-                    Text(Copy.Coverage.footer)
+                    Text(Copy.Coverage.footer).foregroundStyle(Palette.secondaryText)
                 }
             }
             .groupedList()

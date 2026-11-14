@@ -135,13 +135,17 @@ final class AccessibilityAuditTests: XCTestCase {
         }
     }
 
-    /// The top of the app's bottom bar (its buttons and the padding above them), or nil when
-    /// the screen has none.
+    /// The top of whatever floats at the bottom of the screen: the app's bottom bar or the tab
+    /// bar, whichever is higher. Bars behind a sheet can't be tapped, and don't count.
     @MainActor
     private func bottomBarTop(in app: XCUIApplication) -> CGFloat? {
-        let buttons = ["actionbar.primary", "actionbar.secondary"].map { app.buttons[$0] }.filter(\.exists)
-        return buttons.map(\.frame.minY).min().map { $0 - 8 }
+        let bars = ["actionbar.primary", "actionbar.secondary"].map { app.buttons[$0] } + [app.tabBars.firstMatch]
+        return bars.filter { $0.exists && $0.isHittable }.map(\.frame.minY).min()
     }
+
+    /// How far above the bottom bar iOS's scroll edge effect fades and blurs content. On the
+    /// CI screenshots, text 30 points above the bar's buttons is already lighter.
+    private static let edgeFade: CGFloat = 36
 
     /// Why an issue is iOS's rather than the app's, or nil if it's the app's to fix.
     ///
@@ -155,8 +159,9 @@ final class AccessibilityAuditTests: XCTestCase {
     /// Two narrower exceptions cover elements with identifiers too. Bar buttons in the tab bar
     /// and the navigation bar are drawn by iOS at a fixed size, using the Large Content Viewer
     /// instead of Dynamic Type, which the audit reports as a Dynamic Type issue. And content
-    /// scrolled under the app's bottom bar is faded on purpose by iOS's scroll edge effect; it
-    /// can be scrolled up to be read. Only the bar's own buttons are audited there.
+    /// scrolled under the app's bottom bar or the tab bar is faded on purpose by iOS's scroll
+    /// edge effect, which starts a little above them; it can be scrolled up to be read. So
+    /// contrast there is let go, except on the bars' own buttons.
     ///
     /// An element that has gone by the time the issue is looked at counts as the app's: it
     /// can't be shown to be iOS's.
@@ -170,8 +175,9 @@ final class AccessibilityAuditTests: XCTestCase {
         if issue.auditType == .dynamicType && inChrome {
             return "bar button, sized by iOS"
         }
-        if let barTop, frame.midY > barTop, !identifier.hasPrefix("actionbar.") {
-            return "scrolled under the bottom bar"
+        if issue.auditType == .contrast, let barTop, frame.midY > barTop - edgeFade,
+           !inChrome, !identifier.hasPrefix("actionbar.") {
+            return frame.midY > barTop ? "scrolled under the bottom bar" : "faded by iOS above the bottom bar"
         }
         if identifier.isEmpty && inChrome {
             return "system bar or alert"
