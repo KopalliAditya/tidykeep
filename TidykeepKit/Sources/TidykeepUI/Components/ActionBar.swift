@@ -106,9 +106,10 @@ private struct SecondaryBarStyle: ButtonStyle {
         configuration.label
             .padding(.vertical, 14)
             .padding(.horizontal, Space.l)
-            .background(Capsule().fill(Palette.card))
+            // The shadow is the capsule's alone: on the whole button it would also blur
+            // behind each letter.
+            .background(Capsule().fill(Palette.card).shadow(color: .black.opacity(0.1), radius: 6, y: 2))
             .overlay(Capsule().strokeBorder(.separator, lineWidth: 0.5))
-            .shadow(color: .black.opacity(0.1), radius: 6, y: 2)
             .contentShape(Capsule())
             .opacity(isEnabled ? (configuration.isPressed ? 0.7 : 1) : 0.4)
     }

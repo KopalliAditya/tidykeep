@@ -179,8 +179,8 @@ struct RulesView: View {
 }
 
 /// A switch with an icon and a label that wraps at large text sizes. A `Toggle` given a `Label`
-/// cuts its text off at the largest sizes, so the row lays the label out itself, and VoiceOver
-/// reads the whole row as one switch.
+/// cuts its text off at the largest sizes, so the row lays the label out itself. VoiceOver
+/// reads the switch, which carries the same words, rather than the words and then the switch.
 private struct SwitchRow: View {
     let title: String
     let systemImage: String
@@ -193,11 +193,9 @@ private struct SwitchRow: View {
             } icon: {
                 Image(systemName: systemImage)
             }
+            .accessibilityHidden(true)
             Spacer(minLength: 0)
             Toggle(title, isOn: $isOn).labelsHidden()
-        }
-        .accessibilityRepresentation {
-            Toggle(title, isOn: $isOn)
         }
     }
 }

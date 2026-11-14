@@ -92,6 +92,7 @@ final class AccessibilityAuditTests: XCTestCase {
         let chrome = systemChrome(in: tidy.app)
         let barTop = bottomBarTop(in: tidy.app)
         var found: [String] = []
+        var details: [String] = []
         var ignored: [String] = []
 
         // Returning true marks an issue as handled, so the audit itself never fails the test;
@@ -102,12 +103,14 @@ final class AccessibilityAuditTests: XCTestCase {
                 ignored.append("\(what) [ignored: \(reason)]")
             } else {
                 found.append(what)
+                details.append(Self.position(of: issue) + issue.detailedDescription)
             }
             return true
         }
         appIssues += found.map { "\(screen): \($0)" }
 
-        var note = "\(screen): \(found.count) issue(s)\n" + found.map { "- \($0)" }.joined(separator: "\n")
+        var note = "\(screen): \(found.count) issue(s), bottom bar at y \(barTop.map { "\(Int($0))" } ?? "none")\n"
+            + zip(found, details).map { "- \($0)\n    \($1)" }.joined(separator: "\n")
         if !ignored.isEmpty {
             note += "\nIgnored, owned by iOS:\n" + ignored.map { "- \($0)" }.joined(separator: "\n")
         }
@@ -143,9 +146,10 @@ final class AccessibilityAuditTests: XCTestCase {
         return bars.filter { $0.exists && $0.isHittable }.map(\.frame.minY).min()
     }
 
-    /// How far above the bottom bar iOS's scroll edge effect fades and blurs content. On the
-    /// CI screenshots, text 30 points above the bar's buttons is already lighter.
-    private static let edgeFade: CGFloat = 36
+    /// How far above the bottom bar iOS's scroll edge effect reaches. On the CI screenshots it
+    /// starts about 55 points above the bar's buttons, and the audit reports text 38 points
+    /// above them as low contrast.
+    private static let edgeFade: CGFloat = 60
 
     /// Why an issue is iOS's rather than the app's, or nil if it's the app's to fix.
     ///
@@ -160,7 +164,7 @@ final class AccessibilityAuditTests: XCTestCase {
     /// and the navigation bar are drawn by iOS at a fixed size, using the Large Content Viewer
     /// instead of Dynamic Type, which the audit reports as a Dynamic Type issue. And content
     /// scrolled under the app's bottom bar or the tab bar is faded on purpose by iOS's scroll
-    /// edge effect, which starts a little above them; it can be scrolled up to be read. So
+    /// edge effect, which starts about 55 points above them; it can be scrolled up to be read. So
     /// contrast there is let go, except on the bars' own buttons.
     ///
     /// An element that has gone by the time the issue is looked at counts as the app's: it
@@ -183,6 +187,14 @@ final class AccessibilityAuditTests: XCTestCase {
             return "system bar or alert"
         }
         return nil
+    }
+
+    /// The element's frame, to tell where on screen an issue is.
+    @MainActor
+    private static func position(of issue: XCUIAccessibilityAuditIssue) -> String {
+        guard let element = issue.element, element.exists else { return "" }
+        let f = element.frame
+        return "at y \(Int(f.minY))-\(Int(f.maxY)): "
     }
 
     @MainActor
