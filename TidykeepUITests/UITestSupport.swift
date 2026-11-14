@@ -100,8 +100,12 @@ final class AppDriver {
 
     /// Launches a fresh copy of the app, then gets past onboarding to the Tidy tab.
     /// `appearance` ("dark" or "light") forces the app's look through -TKAppearance, for
-    /// when XCUIDevice can't switch the simulator's.
-    func launch(seeds: Seeds = [], appearance: String? = nil, file: StaticString = #filePath, line: UInt = #line) {
+    /// when XCUIDevice can't switch the simulator's. `textSize` is a UIKit content size category
+    /// name, such as "UICTContentSizeCategoryAccessibilityXXXL", for the app's text size.
+    func launch(
+        seeds: Seeds = [], appearance: String? = nil, textSize: String? = nil,
+        file: StaticString = #filePath, line: UInt = #line
+    ) {
         var arguments = [
             "-TKResetState", "YES",
             "-AppleLanguages", "(en)",
@@ -110,6 +114,7 @@ final class AppDriver {
         if seeds.contains(.files) { arguments += ["-TKSeedFiles", "YES"] }
         if seeds.contains(.contacts) { arguments += ["-TKSeedContacts", "YES"] }
         if let appearance { arguments += ["-TKAppearance", appearance] }
+        if let textSize { arguments += ["-UIPreferredContentSizeCategoryName", textSize] }
         app.launchArguments = arguments
         app.launch()
         depth = 0

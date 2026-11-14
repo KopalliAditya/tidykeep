@@ -58,7 +58,7 @@ struct RulesView: View {
                     Label(Copy.Rules.albums, systemImage: "rectangle.stack")
                 }
             }
-            SwitchRow(title: Copy.Rules.screenshotsInAlbums, systemImage: "camera.viewfinder", isOn: keepScreenshotsInAlbums)
+            Toggle(Copy.Rules.screenshotsInAlbums, isOn: keepScreenshotsInAlbums)
             SwitchRow(title: Copy.Rules.recentFiles, systemImage: "doc.badge.clock", isOn: hideRecentFiles)
         } header: {
             Text(Copy.Rules.alwaysKeep).foregroundStyle(Palette.secondaryText)
@@ -196,7 +196,7 @@ private struct SwitchRow: View {
                 .foregroundStyle(.tint)
                 .frame(width: iconWidth)
                 .accessibilityHidden(true)
-            Toggle(title, isOn: $isOn).toggleStyle(.switch)
+            Toggle(title, isOn: $isOn)
         }
     }
 }

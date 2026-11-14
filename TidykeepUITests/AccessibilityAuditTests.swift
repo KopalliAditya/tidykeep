@@ -73,8 +73,22 @@ final class AccessibilityAuditTests: XCTestCase {
         try audit("history", tidy)
 
         tidy.selectTab("tab.rules", label: "Rules")
+        attach(text: tidy.app.debugDescription, named: "tree-rules")
         try audit("rules", tidy)
         failOnAppIssues()
+    }
+
+    /// Rules at the largest text size, for a person to look at: a screenshot, the element tree
+    /// and the audit's issues are attached, and nothing here fails the test.
+    @MainActor
+    func testRulesAtLargestText() throws {
+        XCTExpectFailure("Only attaches what it finds", options: .nonStrict())
+        let tidy = AppDriver(self)
+        tidy.launch(textSize: "UICTContentSizeCategoryAccessibilityXXXL")
+        tidy.selectTab("tab.rules", label: "Rules")
+        tidy.screenshot("rules-ax5")
+        attach(text: tidy.app.debugDescription, named: "tree-rules-ax5")
+        try audit("rules-ax5", tidy)
     }
 
     // MARK: Auditing
