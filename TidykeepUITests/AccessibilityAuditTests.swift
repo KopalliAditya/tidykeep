@@ -65,7 +65,13 @@ final class AccessibilityAuditTests: XCTestCase {
         tidy.passContactsPermission()
         tidy.open("contacts.row.0")
         XCTAssertTrue(tidy.element("actionbar.primary").waitForExistence(timeout: 20), "No contact merge")
-        try audit("contact-merge", tidy)
+        try audit("contact-merge", tidy) {
+            tidy.popToRoot()
+            tidy.open("home.row.contacts")
+            tidy.passContactsPermission()
+            tidy.open("contacts.row.0")
+            XCTAssertTrue(tidy.element("actionbar.primary").waitForExistence(timeout: 20), "No contact merge the second time")
+        }
         tidy.popToRoot()
 
         tidy.selectTab("tab.history", label: "History")
@@ -141,7 +147,7 @@ final class AccessibilityAuditTests: XCTestCase {
                         // On CI the audit flags some text whose words wrap whole within its
                         // frame, as the screenshot shows. Text measured to fit is noted;
                         // anything else it flags counts.
-                        if element.elementType == .staticText, Self.cutShort(element, at: size) == nil {
+                        if element.elementType == .staticText, Self.fits(element, at: size) {
                             fits.append("\(Self.describe(issue)) [measured: fits, \(Int(element.frame.width)) by \(Int(element.frame.height)) points]")
                         } else {
                             clipped.append(Self.describe(issue))
@@ -181,19 +187,32 @@ final class AccessibilityAuditTests: XCTestCase {
         return cell.exists ? cell : app.descendants(matching: .any).matching(identifier: identifier).firstMatch
     }
 
-    /// Words in the row that are cut short (`cutShort(_:at:)`).
+    /// Words in the row that are cut short: text one line tall but narrower than its words take
+    /// on one line at this text size, in the body style the rows use. Text on more lines isn't
+    /// measured here: most rows are one element joining their name and value, with one label
+    /// for words laid out apart. The clipped text audit guesses from the element tree; this
+    /// measures what's on screen.
     @MainActor
     private static func cutShort(in row: XCUIElement, at size: UIContentSizeCategory) -> [String] {
-        row.staticTexts.allElementsBoundByIndex.compactMap { cutShort($0, at: size) }
+        let font = bodyFont(at: size)
+        return row.staticTexts.allElementsBoundByIndex.compactMap { text -> String? in
+            guard text.exists, !text.label.isEmpty else { return nil }
+            let frame = text.frame
+            let oneLine = (text.label as NSString).size(withAttributes: [.font: font])
+            // A point or two either way is rounding.
+            guard frame.height < oneLine.height * 1.5, frame.width + 2 < oneLine.width else { return nil }
+            return "\"\(text.label)\" is \(Int(frame.width)) points wide and needs \(Int(oneLine.width.rounded(.up))) on one line"
+        }
     }
 
-    /// How this text is cut short, or nil if its words fit: wrapped to the text's width at this
-    /// text size, in the body style the rows use, they need at least half a line more height
-    /// than it has. Cut text is missing a whole line or more, so anything less is rounding. The
-    /// clipped text audit guesses from the element tree; this measures what's on screen.
+    /// Whether this one text's words fit its frame: wrapped to its width at this text size, in
+    /// the body style the rows use, they need less than half a line more height than it has.
+    /// Cut text is missing a whole line or more, so anything less is rounding. An element that
+    /// joins a row's name and value has a label its frame wasn't laid out for, and reads as not
+    /// fitting.
     @MainActor
-    private static func cutShort(_ text: XCUIElement, at size: UIContentSizeCategory) -> String? {
-        guard text.exists, !text.label.isEmpty else { return nil }
+    private static func fits(_ text: XCUIElement, at size: UIContentSizeCategory) -> Bool {
+        guard text.exists, !text.label.isEmpty else { return false }
         let font = bodyFont(at: size)
         let frame = text.frame
         // A point or two of width either way is rounding, and mustn't wrap a word.
@@ -201,10 +220,7 @@ final class AccessibilityAuditTests: XCTestCase {
             with: CGSize(width: frame.width + 2, height: .greatestFiniteMagnitude),
             options: .usesLineFragmentOrigin, attributes: [.font: font], context: nil
         )
-        guard needed.height > frame.height + font.lineHeight / 2 else { return nil }
-        let lines = Int((needed.height / font.lineHeight).rounded())
-        let room = max(1, Int((frame.height / font.lineHeight).rounded()))
-        return "\"\(text.label)\" is \(Int(frame.width)) by \(Int(frame.height)) points: its words take \(lines) line(s) at that width, and it has room for \(room)"
+        return needed.height <= frame.height + font.lineHeight / 2
     }
 
     /// The body style the Rules rows use, at this text size.
@@ -230,8 +246,13 @@ final class AccessibilityAuditTests: XCTestCase {
     /// ones (`cutShort`, `testRulesAtLargerText`, `testRulesAtLargestText`). The clipped text
     /// audit's issue reads "may be clipped at larger Dynamic Type sizes": a guess about sizes
     /// those tests check directly, so in those rows it's noted rather than counted.
+    ///
+    /// `reopen` shows the same screen again from scratch, for Dynamic Type issues that both
+    /// checks below find: they count only if the screen shown afresh has them too.
     @MainActor
-    private func audit(_ screen: String, _ tidy: AppDriver, measured: [CGRect] = []) throws {
+    private func audit(
+        _ screen: String, _ tidy: AppDriver, measured: [CGRect] = [], reopen: (@MainActor () -> Void)? = nil
+    ) throws {
         // Let animations settle: a half-faded element reads as low contrast.
         RunLoop.current.run(until: Date().addingTimeInterval(1.0))
         let chrome = systemChrome(in: tidy.app)
@@ -258,7 +279,7 @@ final class AccessibilityAuditTests: XCTestCase {
 
         // The clipped text and Dynamic Type checks change the text size and look again, and on
         // some CI runs they report what passes on others with the same code: rows that fit at
-        // every size, such as Albums with its one word "None", or once every text on the contact
+        // every size, such as Albums with its one word "None", or every text on the contact
         // merge screen, which had no such issue in the six runs before. So those two count only
         // if a second check, a moment later, finds them too; the note lists what only the first
         // one found.
@@ -276,6 +297,27 @@ final class AccessibilityAuditTests: XCTestCase {
                 ignored.append("\(issue.what) [ignored: not found by a second check]")
             }
             found.removeAll { rechecked.contains($0.kind) && !again.contains($0.what) }
+        }
+
+        // When the contact merge screen failed Dynamic Type on every text, a second check found
+        // every one again, though the same screen had passed six runs in a row. So the screen is
+        // shown afresh, with the same cards, and checked once more; what it shows then counts.
+        // The element tree and a screenshot of the first showing are attached, to say why.
+        let dynamic = found.filter { $0.kind == .dynamicType }
+        if !dynamic.isEmpty, let reopen {
+            attach(text: tidy.app.debugDescription, named: "tree-\(screen)")
+            tidy.screenshot("a11y-\(screen)-dynamic-type")
+            reopen()
+            RunLoop.current.run(until: Date().addingTimeInterval(1.0))
+            var again: Set<String> = []
+            try tidy.app.performAccessibilityAudit(for: .dynamicType) { issue in
+                again.insert(Self.describe(issue))
+                return true
+            }
+            for issue in dynamic where !again.contains(issue.what) {
+                ignored.append("\(issue.what) [ignored: not found on the screen shown afresh]")
+            }
+            found.removeAll { $0.kind == .dynamicType && !again.contains($0.what) }
         }
         appIssues += found.map { "\(screen): \($0.what)" }
 
