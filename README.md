@@ -14,10 +14,10 @@ Built VoiceOver-first: every screen, photo and decision has a spoken label.
 
 | Area | What ships in 1.0 |
 |---|---|
-| Photos | **Similar Shots:** runs of near-identical photos, the best pick in each and why ("Best pick: sharpest and best faces"). **Copies:** the same photo re-saved, resized, re-encoded, lightly cropped or screenshotted, found across the whole library; the copy with the most detail stays and the others' favorite and albums move onto it. **Screenshots:** by month, nothing marked in advance. **Big Videos:** over 1 minute, sorted by duration × pixels. Photos and videos show counts, pixels and durations, never bytes. |
+| Photos | **Similar Shots:** runs of near-identical photos, the best pick in each and why ("Best pick: sharpest and best faces"). **Copies:** the same photo re-saved, resized, re-encoded, lightly cropped or screenshotted, found across the whole library. A favorite or edited copy is always the one kept; otherwise the copy with the most detail stays. It's added to the albums of the copies removed. **Screenshots:** by month, nothing marked in advance. **Big Videos:** over 1 minute, sorted by duration × pixels. Photos and videos show counts, pixels and durations, never bytes. |
 | Files | Only in folders the user picks. **Duplicate Files:** same size, then a 64 KB head-and-tail hash, then a full SHA-256. **Large Files:** 100 MB and over, with exact bytes. **Holding:** a file moves into a "Held by Tidykeep" folder at the root of the folder it came from (a same-volume rename), with Put back, Delete now and Empty. |
 | Contacts | Duplicate cards by name, phone or email, only within one account. A phone number shared by three or more cards never counts as a match. A merge preview shows where each field comes from; a vCard backup is written first, and Undo puts things back. |
-| History | A receipt for every change, written before the change (in progress) and after it (done, failed or partial). Receipts hold metadata only, never images, and are kept for a year. Each one shows the way back where there is one (Recently Deleted for photos, for 30 days; Put back for files in Holding; Undo for contacts) and says so when there is none, as after Delete now or Empty in Holding. |
+| History | A receipt for every change, written before the change (in progress) and after it (done, failed or partial). Receipts hold counts, dates, pixel sizes, file names and byte counts, never images, and are kept for a year. A contact merge's receipt holds only the contact's name and card IDs; the merged cards' details are kept next to the contact backup and deleted with it (by Delete backups, or when the receipt goes). Every receipt shows the way back where there is one (Recently Deleted for photos, for 30 days; Put back for files in Holding; Undo for contacts) and says so when there is none, as after Delete now or Empty in Holding. |
 | Rules | What's always kept (favorites, edited and hidden photos; chosen albums; screenshots in albums; files changed in the last 7 days; My Card), what to look at, folders, haptics, saved data, and About. |
 
 It can't clear caches, System Data, Messages attachments or other apps' data, because iOS
@@ -38,14 +38,18 @@ doesn't let any app do that, and it never says it can.
 
 ## Privacy
 
-- **No network code.** `scripts/check-no-network.sh` fails on any networking API, web view,
-  share sheet, link or scheme-prefixed URL in the app's Swift, on any third-party package,
-  and on network or iCloud keys in the app's plists and entitlements.
+- **No network code.** `scripts/check-no-network.sh` fails on these in the app's Swift:
+  network APIs (URLSession, Network.framework, CFNetwork, Bonjour and NetService,
+  LinkPresentation, MapKit, CloudKit, the iCloud key-value store, Multipeer), web views,
+  share sheets and mail compose, `Link`, `openURL` and opening URLs other than Settings, and
+  URLs with a scheme. It also fails on a third-party package in `Package.swift`, `project.yml`
+  or the Xcode project, and on network or iCloud keys in the app's plists and entitlements.
 - **Nothing collected.** No account, analytics, crash reporting, ads or tracking. The App
   Store label is "Data Not Collected", and `App/PrivacyInfo.xcprivacy` agrees.
 - **Never downloads.** Photos and files that are only in iCloud are skipped and counted.
 - **Stays in the app.** The photo analysis, receipts, vCard backups, folder bookmarks and
-  preferences live in the app's container; deleting the app deletes them.
+  preferences live in the app's container; deleting the app deletes them. All but the
+  preferences are left out of iPhone backups.
 - The policy is `docs/PRIVACY.md`. The app ships the same text as plain text in
   `TidykeepKit/Sources/TidykeepUI/Resources/PrivacyPolicy.txt`; change both together.
 

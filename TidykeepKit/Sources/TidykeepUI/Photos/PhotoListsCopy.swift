@@ -59,10 +59,11 @@ extension Copy.Copies {
         "\(Copy.Copies.relation(relation)). \(keeperIsProtected ? "Keeps the favorite or edited copy." : "Keeps the copy with the most detail.")"
     }
 
-    /// The Why line of the review sheet for one or more sets.
+    /// The Why line of the review sheet for one or more sets. The copy that stays may be a
+    /// favorite, an edited one or one the user chose, so it isn't called the most detailed.
     static func reviewWhy(sets: Int) -> String {
         let from = sets == 1 ? "From 1 set." : "From \(Copy.sets(sets))."
-        return "\(from) The copy with the most detail stays and gets the favorite and albums of the others. Dates don't change."
+        return "\(from) The copy that stays is added to the albums of the copies removed. Dates don't change."
     }
 
     static func keptSafe(_ n: Int) -> String {
@@ -77,7 +78,7 @@ extension Copy.Copies {
     }
 
     static func undo(until date: Date) -> String {
-        "Removed copies are in Recently Deleted in Photos until \(Copy.day(date)). The favorite and albums added can be taken back in History."
+        "Removed copies are in Recently Deleted in Photos until \(Copy.day(date)). The albums added can be taken back in History."
     }
 }
 

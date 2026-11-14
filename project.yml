@@ -50,8 +50,8 @@ targets:
         NSPhotoLibraryUsageDescription: >-
           Tidykeep looks through the photos and videos on this iPhone to find similar shots,
           copies, screenshots and big videos you may not need. When you confirm, it moves the
-          ones you choose to Recently Deleted, and adds a removed copy's favorite and albums to
-          the one you keep. Nothing leaves your iPhone.
+          ones you choose to Recently Deleted, and adds the copy you keep to the albums of the
+          copies removed. Nothing leaves your iPhone.
         NSContactsUsageDescription: >-
           Tidykeep compares names, phone numbers and email addresses on this iPhone to find
           duplicate cards, and saves a backup before any merge. Nothing leaves your iPhone.

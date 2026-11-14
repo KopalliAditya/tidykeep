@@ -87,10 +87,14 @@ extension PhotosModel {
         return false
     }
 
-    /// Albums any photo of the set is in, by title: where the kept copy will be after merging.
+    /// Where the kept copy will be after merging, by title: the albums it's in now and the ones
+    /// it joins. A copy in an album it can't join isn't removed (`CopyMerge.sparingAlbums`), so
+    /// that album isn't named.
     func albumTitles(for group: PhotoGroup) -> [String] {
-        let ids = Set(group.members.map(\.id))
-        return albums.filter { !$0.assetIDs.isDisjoint(with: ids) }.map(\.title).sorted()
+        let keeper = copyKeeper(in: group).id
+        let merge = CopyMerge(keeperID: keeper, removeIDs: removals(in: group).map(\.id)).sparingAlbums(albums)
+        let joined = Set(merge.albumsToJoin(albums).map(\.id))
+        return albums.filter { $0.assetIDs.contains(keeper) || joined.contains($0.id) }.map(\.title).sorted()
     }
 
     /// Marks or unmarks every screenshot in `ids`: all of them when any is unmarked, otherwise

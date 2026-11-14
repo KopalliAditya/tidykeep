@@ -27,12 +27,14 @@ public protocol PhotoSource: Sendable {
     func fetchVideos(since: Date?) async throws -> [VideoMeta]
     /// The user's own albums with what is in them, for "Always keep" and the copy merge.
     func albums() async -> [PhotoAlbum]
-    /// Merges copy sets in one change, so PhotoKit asks once: each keeper becomes a favorite if
-    /// any of its copies was one and joins every album a copy was in, then the copies are
-    /// deleted. Dates and places are never written. Nil when nothing changed (the user said
+    /// Merges copy sets in one change, so PhotoKit asks once: each keeper joins every album a
+    /// removed copy was in, then the copies are deleted. Favorites and edited copies are never
+    /// deleted, and neither is a copy in an album the keeper can't join (`CopyMerge.sparingAlbums`).
+    /// Favorites, dates and places are never written. Nil when nothing changed (the user said
     /// no, or the change failed: PhotoKit applies all of it or none).
     func merge(_ sets: [CopyMerge]) async -> [MergeOutcome]?
-    /// Takes back what `merge` added to the keepers. The deleted copies stay in Recently Deleted.
+    /// Takes the keepers back out of the albums `merge` added them to. The deleted copies stay
+    /// in Recently Deleted.
     func undoMerge(_ outcomes: [MergeOutcome]) async -> Bool
     /// File formats ("HEIC", "JPEG", "PNG") for a few photos, such as the members of a copy set.
     func formats(for ids: [String]) async -> [String: String]
@@ -112,15 +114,34 @@ public struct CopyMerge: Sendable, Hashable, Codable {
     }
 }
 
+extension CopyMerge {
+    /// This merge without the copies that have to stay. A copy in an album the keeper isn't in
+    /// and can't be added to (PhotoKit won't add to some synced albums) is kept, as a favorite
+    /// is, so that album never loses the photo and the keeper ends up in every album the
+    /// removed copies were in.
+    public func sparingAlbums(_ albums: [PhotoAlbum]) -> CopyMerge {
+        let closed = albums.filter { !$0.canAddPhotos && !$0.assetIDs.contains(keeperID) }
+        return CopyMerge(keeperID: keeperID, removeIDs: removeIDs.filter { id in !closed.contains { $0.assetIDs.contains(id) } })
+    }
+
+    /// The albums the keeper joins: each one a removed copy is in and the keeper isn't.
+    public func albumsToJoin(_ albums: [PhotoAlbum]) -> [PhotoAlbum] {
+        let removing = Set(removeIDs)
+        return albums.filter { !$0.assetIDs.contains(keeperID) && !$0.assetIDs.isDisjoint(with: removing) }
+    }
+}
+
 /// What a merge did to one set, kept in its receipt so it can be taken back.
 public struct MergeOutcome: Sendable, Hashable, Codable {
     public var keeperID: String
     public var deletedIDs: Set<String>
-    /// The keeper was made a favorite because a copy was one.
+    /// The keeper was made a favorite because a copy was one. A merge never sets it: a
+    /// favorite copy is never removed, so there is no favorite to move.
     public var favoriteAdded = false
     /// Albums the keeper was added to.
     public var albumIDsAdded: [String] = []
-    /// Albums the keeper couldn't be added to, by title, for the receipt.
+    /// Albums the keeper couldn't be added to, by title. A merge leaves it empty: a copy in
+    /// such an album isn't removed (`CopyMerge.sparingAlbums`).
     public var albumsSkipped: [String] = []
 
     public init(keeperID: String, deletedIDs: Set<String>, favoriteAdded: Bool = false, albumIDsAdded: [String] = [], albumsSkipped: [String] = []) {

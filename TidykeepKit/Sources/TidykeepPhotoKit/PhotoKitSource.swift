@@ -164,14 +164,14 @@ public final class PhotoKitSource: PhotoSource {
             var byID: [String: PHAsset] = [:]
             for i in 0..<all.count { byID[all.object(at: i).localIdentifier] = all.object(at: i) }
             guard let keeper = byID[set.keeperID] else { continue }
-            // As in `delete`: a copy made a favorite or edited since the check is kept.
-            let removing = set.removeIDs.compactMap { byID[$0] }.filter { !$0.isFavorite && !$0.hasAdjustments }
+            // As in `delete`: a copy made a favorite or edited since the check is kept. So is a
+            // copy in an album the keeper can't join, so that album keeps the photo.
+            let unprotected = set.removeIDs.compactMap { byID[$0] }.filter { !$0.isFavorite && !$0.hasAdjustments }
+            let merge = CopyMerge(keeperID: set.keeperID, removeIDs: unprotected.map(\.localIdentifier)).sparingAlbums(albums)
+            let removing = merge.removeIDs.compactMap { byID[$0] }
             guard !removing.isEmpty else { continue }
-            let removingIDs = Set(removing.map(\.localIdentifier))
-            var outcome = MergeOutcome(keeperID: set.keeperID, deletedIDs: removingIDs)
-            for album in albums where !album.assetIDs.contains(set.keeperID) && !album.assetIDs.isDisjoint(with: removingIDs) {
-                if album.canAddPhotos { outcome.albumIDsAdded.append(album.id) } else { outcome.albumsSkipped.append(album.title) }
-            }
+            var outcome = MergeOutcome(keeperID: set.keeperID, deletedIDs: Set(merge.removeIDs))
+            outcome.albumIDsAdded = merge.albumsToJoin(albums).map(\.id)
             plans.append(MergePlan(keeper: keeper, removing: removing, outcome: outcome))
         }
         guard !plans.isEmpty else { return nil }

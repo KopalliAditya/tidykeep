@@ -14,7 +14,7 @@ public struct Receipt: Sendable, Hashable, Codable, Identifiable {
         case photosRemoved
         case screenshotsRemoved
         case videosRemoved
-        /// Favorites and albums moved onto the kept copy, then the other copies removed.
+        /// The kept copy added to the albums of the other copies, then those copies removed.
         case copiesMerged
         /// "Keep all": nothing changed in the library, but the group won't be suggested again.
         case keptAll

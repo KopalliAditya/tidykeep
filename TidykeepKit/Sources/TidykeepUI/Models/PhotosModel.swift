@@ -434,8 +434,8 @@ public final class PhotosModel {
         })
     }
 
-    /// Takes the albums and favorite back off the kept copies. The removed copies are in
-    /// Recently Deleted, where only Photos can bring them back.
+    /// Takes the kept copies back out of the albums the merge added them to. The removed copies
+    /// are in Recently Deleted, where only Photos can bring them back.
     public func undoMerge(_ receipt: Receipt) async {
         guard receipt.kind == .copiesMerged, receipt.status != .undone else { return }
         guard let data = receipt.payload, let outcomes = try? JSONDecoder().decode([MergeOutcome].self, from: data),
