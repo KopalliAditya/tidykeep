@@ -31,8 +31,15 @@ struct DuplicateContactsView: View {
             }
         case .denied:
             ScrollView {
-                AccessOffView(title: Copy.Contacts.accessOff, detail: Copy.Contacts.accessOffDetail, symbol: "person.crop.circle.badge.xmark")
-                    .padding(Space.l)
+                // Restricted (Screen Time, device management) can't be changed in Settings, so it
+                // gets no Settings steps.
+                if contacts.isRestricted {
+                    AccessOffView(title: Copy.Contacts.restricted, detail: Copy.Contacts.restrictedDetail, symbol: "person.crop.circle.badge.xmark")
+                        .padding(Space.l)
+                } else {
+                    AccessOffView(title: Copy.Contacts.accessOff, detail: Copy.Contacts.accessOffDetail, symbol: "person.crop.circle.badge.xmark")
+                        .padding(Space.l)
+                }
             }
             .background(Palette.groupedBackground)
         case .allowed:
@@ -48,7 +55,10 @@ struct DuplicateContactsView: View {
     private var emptyOrChecking: some View {
         ScrollView {
             VStack(spacing: Space.l) {
-                if contacts.isScanning || !contacts.hasChecked {
+                if contacts.scanFailed {
+                    InlineError(text: Copy.Contacts.scanFailed) { contacts.rescan() }
+                        .accessibilityIdentifier("contacts.scanFailed")
+                } else if contacts.isScanning || !contacts.hasChecked {
                     VStack(spacing: Space.m) {
                         ProgressView()
                         Text(Copy.Contacts.checking)
@@ -59,23 +69,24 @@ struct DuplicateContactsView: View {
                     .frame(maxWidth: .infinity)
                     .accessibilityElement(children: .combine)
                     .accessibilityIdentifier("contacts.status")
-                } else if contacts.scanFailed {
-                    InlineError(text: Copy.Contacts.scanFailed) { contacts.rescan() }
                 } else {
                     AllTidyView(detail: Copy.Contacts.emptyDetail)
                         .padding(.top, Space.xl)
                     if contacts.isLimited {
-                        Text(Copy.Contacts.limited)
-                            .font(.footnote)
-                            .foregroundStyle(.secondary)
-                            .multilineTextAlignment(.center)
+                        VStack(spacing: Space.s) {
+                            Text(Copy.Contacts.limited(contacts.checkedCount))
+                                .font(.footnote)
+                                .foregroundStyle(.secondary)
+                                .multilineTextAlignment(.center)
+                            ShareMoreContactsButton()
+                        }
                     }
                 }
             }
             .padding(Space.l)
         }
         .background(Palette.groupedBackground)
-        .refreshable { contacts.rescan() }
+        .refreshable { await contacts.checkAgainAndWait() }
     }
 }
 
@@ -88,6 +99,13 @@ private struct ContactGroupList: View {
         List {
             Section {
                 status
+                if contacts.scanFailed {
+                    InlineError(text: Copy.Contacts.scanFailed) { contacts.rescan() }
+                        .accessibilityIdentifier("contacts.scanFailed")
+                }
+                if contacts.isLimited {
+                    ShareMoreContactsButton()
+                }
             }
             ForEach(sections, id: \.reason) { section in
                 Section(Copy.Contacts.section(section.reason)) {
@@ -99,7 +117,7 @@ private struct ContactGroupList: View {
             if !contacts.crossAccountGroups.isEmpty {
                 Section {
                     ForEach(Array(contacts.crossAccountGroups.enumerated()), id: \.element.id) { index, group in
-                        groupRow(group)
+                        groupRow(group, mergeable: false)
                             .accessibilityIdentifier("contacts.other.\(index)")
                     }
                 } header: {
@@ -111,7 +129,7 @@ private struct ContactGroupList: View {
             }
         }
         .groupedList()
-        .refreshable { contacts.rescan() }
+        .refreshable { await contacts.checkAgainAndWait() }
     }
 
     private var status: some View {
@@ -129,7 +147,7 @@ private struct ContactGroupList: View {
                     .contentTransition(.numericText())
             }
             if contacts.isLimited {
-                Text(Copy.Contacts.limited)
+                Text(Copy.Contacts.limited(contacts.checkedCount))
                     .font(.footnote)
                     .foregroundStyle(.secondary)
             }
@@ -144,19 +162,20 @@ private struct ContactGroupList: View {
         }
         .accessibilityIdentifier("contacts.row.\(index)")
         .swipeActions(edge: .trailing) {
-            Button(Copy.Contacts.keepBoth) { contacts.keepApart(group.id) }
+            Button(Copy.Contacts.keepApart(group.cardIDs.count)) { contacts.keepApart(group.id) }
                 .tint(Palette.accent)
         }
-        .accessibilityAction(named: Text(Copy.Contacts.keepBoth)) { contacts.keepApart(group.id) }
+        .accessibilityAction(named: Text(Copy.Contacts.keepApart(group.cardIDs.count))) { contacts.keepApart(group.id) }
     }
 
-    private func groupRow(_ group: ContactDuplicateGroup) -> some View {
+    private func groupRow(_ group: ContactDuplicateGroup, mergeable: Bool = true) -> some View {
         ContactGroupRow(
             name: contacts.name(of: group),
             initials: Copy.Contacts.initials(contacts.card(group.keeperID)),
             cardCount: group.cardIDs.count,
             reasons: group.reasons,
-            accounts: contacts.accounts(of: group)
+            accounts: contacts.accounts(of: group),
+            mergeable: mergeable
         )
     }
 
@@ -251,13 +270,13 @@ private struct ContactMergeContent: View {
         .navigationTitle(contacts.name(of: group))
         .inlineNavigationTitle()
         .actionBar(
-            secondary: BarAction(title: Copy.Contacts.keepBoth, hint: Copy.Contacts.keepBothHint) {
+            secondary: BarAction(title: Copy.Contacts.keepApart(group.cardIDs.count), hint: Copy.Contacts.keepBothHint) {
                 contacts.keepApart(group.id)
                 dismiss()
             },
             primary: BarAction(
+                // No symbol: the label is exactly "Merge 2 cards" for VoiceOver and UI tests.
                 title: Copy.Contacts.mergeButton(plan?.backupIDs.count ?? group.cardIDs.count),
-                systemImage: "arrow.triangle.merge",
                 isEnabled: plan != nil,
                 isBusy: contacts.mergingGroupID == group.id,
                 hint: Copy.Contacts.mergeHint
@@ -383,6 +402,63 @@ private struct ContactMergeContent: View {
             if await contacts.merge(id, keeperID: keeper, choices: choices) {
                 dismiss()
             }
+        }
+    }
+}
+
+// MARK: Limited access
+
+/// With some contacts shared, lets the user share more (the system's contact picker on iPhone),
+/// then checks again.
+struct ShareMoreContactsButton: View {
+    @Environment(ContactsModel.self) private var contacts
+    @ViewState private var isPicking = false
+
+    var body: some View {
+        Button {
+            isPicking = true
+        } label: {
+            Label(Copy.Contacts.shareMore, systemImage: "person.crop.circle.badge.plus")
+                .frame(minHeight: 44)
+        }
+        .buttonStyle(.borderless)
+        .tint(Palette.accent)
+        .accessibilityIdentifier("contacts.shareMore")
+        .contactsAccessPicker(isPresented: $isPicking) { [contacts] in contacts.rescan() }
+    }
+}
+
+// MARK: Undo that replaces later edits
+
+extension View {
+    /// Asks before an undo that would replace changes made to a card after its merge. Put on
+    /// the root view, since the undo can come from the notice anywhere or from History.
+    func contactsUndoConfirmation() -> some View {
+        modifier(ContactsUndoConfirmation())
+    }
+}
+
+private struct ContactsUndoConfirmation: ViewModifier {
+    @Environment(ContactsModel.self) private var contacts
+
+    func body(content: Content) -> some View {
+        let conflict = contacts.pendingUndoConflict
+        content.confirmationDialog(
+            Copy.Contacts.undoConflictTitle,
+            isPresented: Binding(
+                get: { contacts.pendingUndoConflict != nil },
+                set: { if !$0 { contacts.cancelPendingUndo() } }),
+            titleVisibility: .visible,
+            presenting: conflict
+        ) { conflict in
+            Button(conflict.button, role: .destructive) {
+                // Cleared first, so the dialog closing doesn't count as Cancel.
+                contacts.pendingUndoConflict = nil
+                Task { await contacts.confirmUndo(conflict) }
+            }
+            Button(Copy.General.cancel, role: .cancel) { contacts.cancelPendingUndo() }
+        } message: { conflict in
+            Text(conflict.text)
         }
     }
 }

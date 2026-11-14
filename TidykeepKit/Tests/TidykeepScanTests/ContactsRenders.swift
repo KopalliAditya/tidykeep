@@ -45,6 +45,26 @@ import TidykeepVision
         await RenderHarness.render(DuplicateContactsView(), named: "contacts-denied", state: state)
     }
 
+    @Test func restricted() async {
+        let state = await Self.state(InMemoryContactStore(cards: Self.book, access: .restricted))
+        await RenderHarness.render(DuplicateContactsView(), named: "contacts-restricted", state: state)
+    }
+
+    @Test func limited() async {
+        let state = await Self.state(InMemoryContactStore(cards: Self.book, access: .limited))
+        await RenderHarness.render(DuplicateContactsView(), named: "contacts-limited", state: state, height: 1_100)
+        let none = await Self.state(InMemoryContactStore(cards: [Self.book[0], Self.book[7]], access: .limited))
+        await RenderHarness.render(DuplicateContactsView(), named: "contacts-limited-empty", state: none)
+    }
+
+    @Test func failed() async {
+        let store = FlakyContactStore(InMemoryContactStore(cards: Self.book))
+        store.failsToRead = true
+        let state = await Self.state(store)
+        #expect(state.contacts.scanFailed)
+        await RenderHarness.render(DuplicateContactsView(), named: "contacts-failed", state: state)
+    }
+
     @Test func empty() async {
         let state = await Self.state(InMemoryContactStore(cards: [Self.book[0], Self.book[7]]))
         #expect(state.contacts.duplicateGroupCount == 0)
@@ -73,7 +93,7 @@ import TidykeepVision
     // MARK: Data
 
     /// An app state with no photos and the given address book, checked.
-    static func state(_ store: InMemoryContactStore) async -> AppState {
+    static func state(_ store: any ContactStoring) async -> AppState {
         let defaults = freshDefaults()
         defaults.set(true, forKey: "onboarded")
         let state = AppState(

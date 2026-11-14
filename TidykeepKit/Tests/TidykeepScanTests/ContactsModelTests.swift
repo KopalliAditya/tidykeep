@@ -55,7 +55,13 @@ import TidykeepVision
         let (restricted, _, _) = model(InMemoryContactStore(cards: [Self.jordan, Self.jordanWork], access: .restricted))
         await restricted.start()
         #expect(restricted.access == .denied)
+        #expect(restricted.isRestricted)
         #expect(restricted.groups.isEmpty)
+        #expect(Copy.Contacts.accessValue(restricted.access, limited: false, restricted: true) == "Restricted")
+
+        let (denied, _, _) = model(InMemoryContactStore(access: .denied))
+        await denied.start()
+        #expect(!denied.isRestricted)
     }
 
     @Test func startNeverAsksAndContinueDoes() async {
@@ -179,16 +185,68 @@ import TidykeepVision
         await store.update(edited)
 
         await model.undo(receipt)
-        #expect(notices.text == Copy.Contacts.keeperEdited("Jordan Rivera"))
-        #expect(notices.current?.undo?.title == Copy.Contacts.undoAnyway)
+        let conflict = try #require(model.pendingUndoConflict)
+        #expect(conflict.receiptID == receipt.id)
+        #expect(conflict.text == Copy.Contacts.keeperEdited("Jordan Rivera"))
+        #expect(conflict.button == Copy.Contacts.undoAnyway)
         #expect(history.receipt(receipt.id)?.status == .done)
         #expect(await jordans(store).count == 1)
         let noted = try JSONDecoder().decode(ContactMergeRecord.self, from: try #require(history.receipt(receipt.id)?.payload))
         #expect(noted.undoProblem == .keeperEdited)
 
-        await notices.current?.undo?.action()
+        // Cancel leaves the merge as it is; Undo in History asks again.
+        model.cancelPendingUndo()
+        #expect(model.pendingUndoConflict == nil)
+        #expect(history.receipt(receipt.id)?.status == .done)
+        await model.undo(try #require(history.receipt(receipt.id)))
+        let again = try #require(model.pendingUndoConflict)
+
+        await model.confirmUndo(again)
+        #expect(model.pendingUndoConflict == nil)
         #expect(history.receipt(receipt.id)?.status == .undone)
         #expect(await jordans(store).count == 2)
+    }
+
+    @Test func aFailedCheckSaysSoAndCanBeTriedAgain() async {
+        let store = FlakyContactStore(InMemoryContactStore(cards: [Self.jordan, Self.jordanWork]))
+        store.failsToRead = true
+        let history = History(directory: nil)
+        let model = ContactsModel(
+            directory: nil, preferences: Preferences(defaults: freshDefaults()), history: history,
+            notices: Notices(), store: store)
+        await model.start()
+        #expect(model.scanFailed)
+        #expect(!model.hasChecked)
+        #expect(!model.isScanning)
+
+        store.failsToRead = false
+        await model.checkAgainAndWait()
+        #expect(!model.scanFailed)
+        #expect(model.hasChecked)
+        #expect(model.duplicateGroupCount == 1)
+    }
+
+    @Test func backupsWithoutAReceiptAreDeleted() async throws {
+        let store = pair()
+        let (model, history, _) = model(store, directory: data)
+        await model.start()
+        let group = try #require(model.groups.first)
+        await model.merge(group.id, keeperID: group.keeperID, choices: MergeChoices(nameFrom: group.keeperID))
+        #expect(model.backupCount == 1)
+
+        // A backup left by a merge cut off before it was recorded.
+        let backups = ContactBackupStore(directory: data.appendingPathComponent("ContactBackups", isDirectory: true))
+        _ = try backups.save(Data("BEGIN:VCARD\nEND:VCARD\n".utf8), id: UUID())
+        let (later, _, _) = self.model(store, directory: data)
+        #expect(later.backupCount == 2)
+        await later.start()
+        #expect(later.backupCount == 1)
+
+        // Clearing History leaves nothing to undo with, so its backups go too.
+        history.clear()
+        let (cleared, _, _) = self.model(store, directory: data)
+        await cleared.start()
+        #expect(cleared.backupCount == 0)
     }
 
     @Test func aChangedCardStopsTheMergeAndChangesNothing() async throws {
@@ -246,7 +304,7 @@ import TidykeepVision
         let group = try #require(model.groups.first)
         model.keepApart(group.id)
         #expect(model.duplicateGroupCount == 0)
-        #expect(notices.text == Copy.Contacts.keptBoth)
+        #expect(notices.text == "Kept both cards. They won't be suggested again.")
 
         let (again, _, _) = self.model(pair(), directory: data)
         await again.start()
@@ -331,9 +389,43 @@ import TidykeepVision
         #expect(Copy.Contacts.notesCaveat([1]) == "Notes can't be checked. If card 2 has notes, copy them first.")
         #expect(Copy.Contacts.confirmTitle([1, 2]) == "Notes on cards 2 and 3 can't be checked")
         #expect(Copy.Contacts.mergeButton(2) == "Merge 2 cards")
+        #expect(Copy.Contacts.keepApart(2) == "Keep both")
+        #expect(Copy.Contacts.keepApart(3) == "Keep all 3")
+        #expect(Copy.Contacts.keptApart(3) == "Kept all 3 cards. They won't be suggested again.")
+        #expect(Copy.Contacts.limited(12) == "Checking the 12 contacts you shared.")
+        #expect(Copy.Contacts.rowLabel("Maya Cohen", cards: 2, reasons: [.samePhone], accounts: ["iCloud", "Gmail"], mergeable: false)
+            == "Maya Cohen, 2 cards, Same phone, iCloud · Gmail, In different accounts, can't be merged")
         #expect(Copy.Contacts.merged(2, into: "Jordan Rivera") == "Merged 2 cards into Jordan Rivera.")
         #expect(Copy.Contacts.initials(Self.jordan) == "JR")
         let address = LabeledPostal(street: "1 Main St\nApt 2", city: "Livermore", state: "CA", postalCode: "94550")
         #expect(Copy.Contacts.address(address) == "1 Main St, Apt 2, Livermore, CA 94550")
     }
+}
+
+/// An address book that can be told to fail reading, for the check's error state.
+final class FlakyContactStore: ContactStoring, @unchecked Sendable {
+    private let base: InMemoryContactStore
+    private let lock = NSLock()
+    private var _failsToRead = false
+    var failsToRead: Bool {
+        get { lock.withLock { _failsToRead } }
+        set { lock.withLock { _failsToRead = newValue } }
+    }
+
+    init(_ base: InMemoryContactStore) { self.base = base }
+
+    struct ReadFailed: Error {}
+
+    func authorization() -> ContactAccess { base.authorization() }
+    func requestAccess() async throws -> ContactAccess { try await base.requestAccess() }
+    func fetchCards() async throws -> [ContactCard] {
+        if failsToRead { throw ReadFailed() }
+        return try await base.fetchCards()
+    }
+    func backup(ids: [String]) async throws -> Data { try await base.backup(ids: ids) }
+    func apply(_ plan: MergePlan) async throws { try await base.apply(plan) }
+    func undo(_ plan: MergePlan, backup: Data, overwritingLaterEdits: Bool) async throws -> [String] {
+        try await base.undo(plan, backup: backup, overwritingLaterEdits: overwritingLaterEdits)
+    }
+    func add(_ card: ContactCard) async throws -> String { try await base.add(card) }
 }

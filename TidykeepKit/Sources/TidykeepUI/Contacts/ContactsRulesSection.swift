@@ -9,7 +9,7 @@ struct ContactsRulesSection: View {
 
     var body: some View {
         Section {
-            LabeledContent(Copy.Contacts.accessTitle, value: Copy.Contacts.accessValue(contacts.access, limited: contacts.isLimited))
+            LabeledContent(Copy.Contacts.accessTitle, value: Copy.Contacts.accessValue(contacts.access, limited: contacts.isLimited, restricted: contacts.isRestricted))
                 .accessibilityIdentifier("rules.contacts.access")
             accessButton
             Label {
@@ -65,7 +65,8 @@ struct ContactsRulesSection: View {
             .frame(minHeight: 44)
             .accessibilityIdentifier("rules.contacts.allow")
         case .denied:
-            if Platform.canOpenSettings {
+            // Restricted access can't be turned on in Settings.
+            if Platform.canOpenSettings, !contacts.isRestricted {
                 Button(Copy.General.openSettings) { Platform.openSettings() }
                     .frame(minHeight: 44)
                     .accessibilityIdentifier("rules.contacts.settings")

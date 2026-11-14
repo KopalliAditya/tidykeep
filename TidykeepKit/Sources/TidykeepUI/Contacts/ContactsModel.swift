@@ -42,6 +42,9 @@ public final class ContactsModel {
     private(set) var checkedCount = 0
     /// The user shared only some contacts.
     private(set) var isLimited = false
+    /// Access is blocked on this iPhone (Screen Time or device management), so Settings
+    /// can't turn it on. Shown as off.
+    private(set) var isRestricted = false
     private(set) var hasChecked = false
     private(set) var scanFailed = false
     /// The group being merged right now, for the busy button.
@@ -52,6 +55,17 @@ public final class ContactsModel {
     private(set) var keptApart: Set<String> = []
     /// vCard backups saved on this iPhone, one per merge.
     private(set) var backupCount = 0
+    /// An undo that would replace changes made after the merge, waiting for the user to say
+    /// whether to go ahead. The root view asks with a confirmation dialog.
+    var pendingUndoConflict: UndoConflict?
+
+    /// An undo that stopped because the card that stayed changed after the merge.
+    struct UndoConflict: Identifiable, Equatable {
+        var receiptID: UUID
+        var text: String
+        var button: String
+        var id: UUID { receiptID }
+    }
 
     private let directory: URL?
     private let preferences: Preferences
@@ -98,6 +112,7 @@ public final class ContactsModel {
 
     /// Reads access without asking; checks when it's allowed.
     public func start() async {
+        deleteOrphanBackups()
         refreshAccess()
         guard access == .allowed else { return }
         rescan()
@@ -123,6 +138,7 @@ public final class ContactsModel {
         let raw = store.authorization()
         access = Self.access(raw)
         isLimited = raw == .limited
+        isRestricted = raw == .restricted
         if access != .allowed {
             scanTask?.cancel()
             scanTask = nil
@@ -148,6 +164,12 @@ public final class ContactsModel {
         isScanning = true
         scanFailed = false
         scanTask = Task { await runScan() }
+    }
+
+    /// Checks again and returns when the check is done, for pull to refresh.
+    func checkAgainAndWait() async {
+        rescan()
+        await scanTask?.value
     }
 
     private func runScan() async {
@@ -262,7 +284,8 @@ public final class ContactsModel {
         } catch {
             return failed(groupID, problem(for: error))
         }
-        guard !plan.removedIDs.isEmpty else { return failed(groupID, .crossAccount) }
+        // Only the card that stays was read this time: the others changed or went away.
+        guard !plan.removedIDs.isEmpty else { return failed(groupID, .changed) }
 
         let backupID = UUID()
         do {
@@ -330,11 +353,11 @@ public final class ContactsModel {
 
     /// The user says these cards are different people. They aren't suggested again.
     func keepApart(_ groupID: String) {
-        guard mergeable.contains(where: { $0.id == groupID }) else { return }
+        guard let group = mergeable.first(where: { $0.id == groupID }) else { return }
         keptApart.insert(groupID)
         saveKeptApart()
         publish()
-        notices.show(Copy.Contacts.keptBoth, systemImage: "person.2", undo: Notice.Undo(title: Copy.General.undo) { [weak self] in
+        notices.show(Copy.Contacts.keptApart(group.cardIDs.count), systemImage: "person.2", undo: Notice.Undo(title: Copy.General.undo) { [weak self] in
             self?.suggestAgain([groupID])
         })
     }
@@ -408,14 +431,25 @@ public final class ContactsModel {
         }
     }
 
-    /// Asks before an undo that would replace later edits. The banner's button does the undo
-    /// anyway; letting the banner go changes nothing, and Undo in History asks again.
+    /// Asks before an undo that would replace later edits, with a confirmation dialog the
+    /// root view shows. Cancel changes nothing, and Undo in History asks again.
     private func confirmUndo(_ receipt: Receipt, _ text: String, button: String) {
-        let id = receipt.id
-        notices.show(text, systemImage: "exclamationmark.triangle", undo: Notice.Undo(title: button) { [weak self] in
-            guard let self, let current = self.history.receipt(id) else { return }
-            await self.undo(current, overwritingLaterEdits: true)
-        })
+        pendingUndoConflict = UndoConflict(receiptID: receipt.id, text: text, button: button)
+        notices.announce(text, priority: .high)
+    }
+
+    /// The dialog's confirming button: undoes the merge, replacing the later changes.
+    func confirmUndo(_ conflict: UndoConflict) async {
+        if pendingUndoConflict == conflict { pendingUndoConflict = nil }
+        guard let current = history.receipt(conflict.receiptID) else { return }
+        await undo(current, overwritingLaterEdits: true)
+    }
+
+    /// The dialog's Cancel: the merge stays as it is.
+    func cancelPendingUndo() {
+        guard pendingUndoConflict != nil else { return }
+        pendingUndoConflict = nil
+        notices.announce(Copy.Contacts.undoCancelled)
     }
 
     /// Keeps why an undo stopped on the receipt, so History can tell.
@@ -472,6 +506,26 @@ public final class ContactsModel {
         guard let backups else { return [] }
         let items = (try? FileManager.default.contentsOfDirectory(at: backups.directory, includingPropertiesForKeys: nil)) ?? []
         return items.filter { $0.pathExtension == "vcf" }
+    }
+
+    /// Deletes backups no receipt points to: left by a merge cut off before it was recorded
+    /// or saved, or by receipts cleared from History. Without a receipt they can't be used
+    /// to undo anything.
+    private func deleteOrphanBackups() {
+        let files = backupFiles()
+        guard !files.isEmpty else { return }
+        let decoder = JSONDecoder()
+        let used = Set(history.receipts.compactMap { receipt -> String? in
+            guard receipt.kind == .contactsMerged, let data = receipt.payload,
+                  let record = try? decoder.decode(ContactMergeRecord.self, from: data) else { return nil }
+            return record.backupID.uuidString
+        })
+        var deleted = false
+        for url in files where !used.contains(url.deletingPathExtension().lastPathComponent) {
+            try? FileManager.default.removeItem(at: url)
+            deleted = true
+        }
+        if deleted { backupCount = countBackups() }
     }
 
     private func countBackups() -> Int {

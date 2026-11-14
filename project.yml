@@ -40,6 +40,8 @@ targets:
           Tidykeep looks through the photos on this iPhone to find near-identical shots and
           suggest the best one to keep. When you choose, it moves the extras to Recently
           Deleted. Tidykeep never sends your photos anywhere.
+        NSContactsUsageDescription: >-
+          Tidykeep compares your contacts on this iPhone to find duplicates you can merge.
         PHPhotoLibraryPreventAutomaticLimitedAccessAlert: true
         ITSAppUsesNonExemptEncryption: false
         UILaunchScreen: {}

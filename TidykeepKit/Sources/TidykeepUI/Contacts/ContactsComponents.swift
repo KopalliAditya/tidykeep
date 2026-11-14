@@ -1,5 +1,8 @@
 import SwiftUI
 import TidykeepContacts
+#if os(iOS)
+import ContactsUI
+#endif
 
 // The pieces the contacts screens are built from: the monogram, the pre-permission screen,
 // list rows, a card's details and the merged-card preview.
@@ -99,6 +102,19 @@ struct ContactsIntroView: View {
 }
 
 extension View {
+    /// The system's picker for sharing more contacts with limited access (iPhone only). The
+    /// Mac renders draw the button, which does nothing there.
+    @ViewBuilder
+    func contactsAccessPicker(isPresented: Binding<Bool>, onChange: @escaping @MainActor @Sendable () -> Void) -> some View {
+        #if os(iOS)
+        contactAccessPicker(isPresented: isPresented) { _ in
+            Task { @MainActor in onChange() }
+        }
+        #else
+        self
+        #endif
+    }
+
     /// Pins content to the bottom like `actionBar`: a glass bar on iPhone, a plain inset in
     /// the Mac renders.
     @ViewBuilder
@@ -113,14 +129,16 @@ extension View {
 
 // MARK: List rows
 
-/// A list row: monogram, name, "2 cards · Same phone · Same name", and the accounts. At
-/// accessibility text sizes the monogram sits above the text.
+/// A list row: monogram, name, "2 cards · Same phone · Same name", and the accounts. Cards in
+/// different accounts carry a "Not merged" tag. At accessibility text sizes the monogram sits
+/// above the text.
 struct ContactGroupRow: View {
     let name: String
     let initials: String
     let cardCount: Int
     let reasons: Set<MatchReason>
     let accounts: [String]
+    var mergeable = true
     @Environment(\.dynamicTypeSize) private var typeSize
 
     var body: some View {
@@ -144,12 +162,20 @@ struct ContactGroupRow: View {
             }
             .fixedSize(horizontal: false, vertical: true)
             .frame(maxWidth: .infinity, alignment: .leading)
+            if !mergeable {
+                Text(Copy.Contacts.notMergeable)
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(.secondary)
+                    .padding(.horizontal, Space.s)
+                    .padding(.vertical, Space.hair)
+                    .background(Palette.fill, in: Capsule())
+            }
         }
         .padding(.vertical, Space.xs)
         .frame(minHeight: 44)
         .contentShape(Rectangle())
         .accessibilityElement(children: .ignore)
-        .accessibilityLabel(Copy.Contacts.rowLabel(name, cards: cardCount, reasons: reasons, accounts: accounts))
+        .accessibilityLabel(Copy.Contacts.rowLabel(name, cards: cardCount, reasons: reasons, accounts: accounts, mergeable: mergeable))
     }
 }
 

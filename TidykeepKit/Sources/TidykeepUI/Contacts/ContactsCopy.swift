@@ -10,8 +10,8 @@ extension Copy {
         static let introTitle = "Find duplicate contacts"
         static let introDetail = "\(appName) looks for cards that belong to the same person, so you can merge them into one."
         static let introRows: [(symbol: String, text: String)] = [
-            ("person.text.rectangle", "Reads names, phone numbers and emails, and compares them on this iPhone."),
-            ("eye", "Shows each merge first. Nothing changes until you confirm it."),
+            ("person.text.rectangle", "Compares names, phone numbers and emails on this iPhone."),
+            ("eye", "Shows each merge first, with everything on the cards. Nothing changes until you confirm it."),
             ("externaldrive.badge.checkmark", "Saves a vCard backup on this iPhone before every merge, so you can undo it."),
             ("iphone", "Your contacts never leave this iPhone."),
         ]
@@ -19,12 +19,16 @@ extension Copy {
 
         static let accessOff = "Contacts access is off"
         static let accessOffDetail = "To find duplicate cards, open the Settings app, tap Apps, then \(appName), then Contacts, and choose Full Access. Photos and files still work."
+        static let restricted = "Contacts access is restricted"
+        static let restrictedDetail = "Screen Time or this iPhone's management settings don't allow access to contacts, so \(appName) can't check them. Photos and files still work."
 
         // MARK: List
 
         static let checking = "Checking your contacts…"
         static func checked(_ n: Int) -> String { "Checked \(count(n, "card", "cards")) on this iPhone" }
-        static let limited = "Checking only the contacts you shared with \(appName)."
+        /// "Checking the 12 contacts you shared."
+        static func limited(_ n: Int) -> String { "Checking the \(count(n, "contact", "contacts")) you shared." }
+        static let shareMore = "Share more contacts"
         static let scanFailed = "Couldn't read your contacts. Nothing changed."
         static let emptyDetail = "No cards look like the same person."
 
@@ -64,16 +68,19 @@ extension Copy {
         static func accounts(_ names: [String]) -> String { names.joined(separator: " · ") }
 
         /// VoiceOver label for a list row: "Jordan Rivera, 2 cards, Same phone · Same name, iCloud".
-        static func rowLabel(_ name: String, cards n: Int, reasons: Set<MatchReason>, accounts: [String]) -> String {
-            ([name, Copy.cards(n), Self.reasons(reasons)] + (accounts.isEmpty ? [] : [Self.accounts(accounts)]))
+        static func rowLabel(_ name: String, cards n: Int, reasons: Set<MatchReason>, accounts: [String], mergeable: Bool = true) -> String {
+            ([name, Copy.cards(n), Self.reasons(reasons)] + (accounts.isEmpty ? [] : [Self.accounts(accounts)])
+                + (mergeable ? [] : [notMergeableLabel]))
                 .joined(separator: ", ")
         }
 
         static let otherAccounts = "In different accounts"
         static let otherAccountsFooter = "These cards are in different accounts, so \(appName) doesn't merge them: that would move details from one account to another. To see them as one person, open the card in Contacts and link them there."
         static let notMergeable = "Not merged"
+        static let notMergeableLabel = "In different accounts, can't be merged"
 
-        static let keepBoth = "Keep both"
+        /// "Keep both" for a pair, "Keep all 3" for more.
+        static func keepApart(_ n: Int) -> String { n == 2 ? "Keep both" : "Keep all \(n)" }
         static let keepBothHint = "Stops suggesting these cards."
 
         // MARK: Names and fields
@@ -236,12 +243,17 @@ extension Copy {
         /// "Merged 2 cards into Jordan Rivera."
         static func merged(_ n: Int, into name: String) -> String { "Merged \(cards(n)) into \(name)." }
         static func undone(_ name: String, cards n: Int) -> String { "Undone. \(name) is back to \(cards(n))." }
-        static let keptBoth = "Kept both cards. They won't be suggested again."
+        /// "Kept both cards. They won't be suggested again."
+        static func keptApart(_ n: Int) -> String {
+            "Kept \(n == 2 ? "both cards" : "all \(n) cards"). They won't be suggested again."
+        }
         static let suggestedAgain = "Cards you kept apart are back in the list."
         static func keeperEdited(_ name: String) -> String {
             "\(name) was edited after the merge. Undo would replace those edits with the details from before."
         }
         static let undoAnyway = "Undo anyway"
+        static let undoCancelled = "Not undone. Nothing changed."
+        static let undoConflictTitle = "Undo this merge?"
         static func keeperDeleted(_ name: String) -> String {
             "\(name) was deleted after the merge. Undo can bring back all the original cards as new cards."
         }
@@ -259,10 +271,10 @@ extension Copy {
 
         static let rulesTitle = "Contacts"
         static let accessTitle = "Access"
-        static func accessValue(_ access: ContactsModel.Access, limited: Bool) -> String {
+        static func accessValue(_ access: ContactsModel.Access, limited: Bool, restricted: Bool = false) -> String {
             switch access {
             case .notDetermined: "Not asked yet"
-            case .denied: "Off"
+            case .denied: restricted ? "Restricted" : "Off"
             case .allowed: limited ? "Some contacts" : "Full access"
             }
         }
