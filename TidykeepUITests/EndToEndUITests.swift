@@ -10,13 +10,17 @@ import XCTest
 /// fewer; the seed has three of each for that reason, and CI runs these tests after the
 /// screenshots and the accessibility audit.
 final class EndToEndUITests: XCTestCase {
+    /// The no in PhotoKit's prompt, spelled with a straight or a curly apostrophe.
+    private static let refuse = ["Don't Allow", "Don\u{2019}t Allow"]
+
     override func setUpWithError() throws {
         continueAfterFailure = false
     }
 
-    /// Similar Shots: remove the extra shots of a burst, then Copies: merge a set of copies.
-    /// Both go through Review and PhotoKit's own confirmation, leave a notice, and add a row
-    /// to History. One launch, so the photo check runs once.
+    /// Similar Shots: say no to PhotoKit once, then remove the extra shots of a burst. Copies:
+    /// merge a set of copies, then undo it. Both go through Review and PhotoKit's own
+    /// confirmation, leave a notice, and add a row to History. One launch, so the photo check
+    /// runs once.
     @MainActor
     func testRemoveSimilarShotsAndMergeCopies() throws {
         let tidy = AppDriver(self)
@@ -50,41 +54,69 @@ final class EndToEndUITests: XCTestCase {
             tidy.popToRoot()
         }
 
-        XCTContext.runActivity(named: "Remove the extra shots of a burst") { _ in
+        let photos = XCTContext.runActivity(named: "Remove the extra shots of a burst") { _ -> String in
             tidy.open("home.card.similar")
             tidy.open("similar.row.0")
-            XCTAssertTrue(tidy.element("decision.picker").waitForExistence(timeout: 20), "No decision picker in the group")
+            let picker = tidy.element("decision.picker")
+            XCTAssertTrue(picker.waitForExistence(timeout: 20), "No decision picker in the group")
 
             let primary = tidy.element("actionbar.primary")
             XCTAssertTrue(primary.waitForExistence(timeout: 20), "No action bar in the group")
+            let action = primary.label
             XCTAssertNotNil(
-                primary.label.range(of: #"^Remove \d+ photos?$"#, options: .regularExpression),
-                "Primary action reads \"\(primary.label)\", expected \"Remove N photos\""
+                action.range(of: #"^Remove \d+ photos?$"#, options: .regularExpression),
+                "Primary action reads \"\(action)\", expected \"Remove N photos\""
             )
-            tidy.tap("actionbar.primary")
+            // "4 photos" or "1 photo": the notice and History count them the same way.
+            let photos = String(action.dropFirst("Remove ".count))
 
+            // Don't Allow first: nothing goes, and the group stays open as it was.
+            tidy.tap("actionbar.primary")
             let title = tidy.reviewTitle()
             XCTAssertTrue(title.hasPrefix("Remove "), "Review title \"\(title)\"")
+            tidy.tap("review.confirm")
+            XCTAssertNotNil(
+                SystemAlerts.tap(Self.refuse, in: tidy.app, timeout: 30),
+                "No PhotoKit delete prompt to say no to: \(SystemAlerts.describeVisibleAlert(in: tidy.app))"
+            )
+            let refused = tidy.waitForNotice()
+            attach(text: refused, named: "notice-similar-refused")
+            XCTAssertEqual(refused, "Nothing removed.")
+            XCTAssertTrue(picker.waitForExistence(timeout: 20), "The group closed after Don't Allow")
+            XCTAssertTrue(
+                tidy.until(10) { primary.exists && primary.label == action },
+                "Primary action reads \"\(primary.label)\" after Don't Allow, expected \"\(action)\""
+            )
+
+            // Then for real.
+            tidy.tap("actionbar.primary")
+            let again = tidy.reviewTitle()
+            XCTAssertTrue(again.hasPrefix("Remove "), "Review title \"\(again)\"")
             tidy.tap("review.confirm")
             XCTAssertNotNil(
                 SystemAlerts.tap(SystemAlerts.confirmDelete, in: tidy.app, timeout: 30),
                 "No PhotoKit delete prompt: \(SystemAlerts.describeVisibleAlert(in: tidy.app))"
             )
-            let notice = tidy.waitForNotice()
+            let notice = nextNotice(after: refused, tidy)
             attach(text: notice, named: "notice-similar")
+            XCTAssertTrue(notice.hasPrefix("Removed \(photos)."), "Notice reads \"\(notice)\", expected \"Removed \(photos).\"")
             tidy.popToRoot()
+            return photos
         }
 
         XCTContext.runActivity(named: "History has a receipt for the removal") { _ in
             tidy.selectTab("tab.history", label: "History")
+            // Newest first, so the removal is the top row.
             XCTAssertTrue(
-                tidy.until(20) { tidy.rowCount(prefixed: "history.row.") >= 1 },
-                "History shows no receipt after the removal"
+                tidy.until(20) { newestReceipt(tidy).hasPrefix("Removed \(photos).") },
+                "History's top row reads \"\(newestReceipt(tidy))\", expected \"Removed \(photos).\""
             )
+            // Don't Allow left no receipt, so the removal is the only one.
+            XCTAssertEqual(tidy.rowCount(prefixed: "history.row."), 1, "Don't Allow left a receipt in History")
             tidy.selectTab("tab.tidy", label: "Tidy")
         }
 
-        XCTContext.runActivity(named: "Merge a set of copies") { _ in
+        let copies = XCTContext.runActivity(named: "Merge a set of copies, then undo it") { _ -> String in
             // Removing photos starts a fresh check of what changed.
             tidy.waitForPhotoCheck()
             tidy.open("home.card.copies")
@@ -104,10 +136,31 @@ final class EndToEndUITests: XCTestCase {
                 prompts.isEmpty,
                 "No PhotoKit prompt for the merge: \(SystemAlerts.describeVisibleAlert(in: tidy.app))"
             )
-            attach(text: prompts.joined(separator: ", "), named: "prompts-copies")
             XCTAssertNotNil(notice, "No notice after the merge")
-            attach(text: notice ?? "", named: "notice-copies")
+            let merged = notice ?? ""
+            // The notice and its Undo go six seconds after it shows, so Undo is tapped first.
+            var undo: XCUIElement?
+            tidy.until(5, every: 0.25) {
+                undo = tidy.undoButton()
+                return undo != nil
+            }
+            XCTAssertNotNil(undo, "The notice \"\(merged)\" has no Undo")
+            undo?.tap()
+            attach(text: prompts.joined(separator: ", "), named: "prompts-copies")
+            attach(text: merged, named: "notice-copies")
+            XCTAssertTrue(merged.hasPrefix("Merged 1 set."), "Notice reads \"\(merged)\", expected \"Merged 1 set.\"")
+            // "The 2 copies removed are in Recently Deleted": History counts them the same way.
+            let copies = merged.range(of: #"\d+ cop(y|ies)"#, options: .regularExpression).map { String(merged[$0]) } ?? ""
+            XCTAssertFalse(copies.isEmpty, "The notice \"\(merged)\" doesn't say how many copies went")
+
+            // The seed puts no copy in an album or favorites, so there's nothing for PhotoKit
+            // to change back and no prompt.
+            let undone = nextNotice(after: merged, tidy)
+            attach(text: undone, named: "notice-copies-undo")
+            XCTAssertTrue(undone.hasPrefix("Took back"), "Notice after Undo reads \"\(undone)\"")
+            XCTAssertNotEqual(undone, "Nothing changed.", "Undo changed nothing")
             tidy.popToRoot()
+            return copies
         }
 
         XCTContext.runActivity(named: "History has a receipt for each") { _ in
@@ -116,11 +169,21 @@ final class EndToEndUITests: XCTestCase {
                 tidy.until(20) { tidy.rowCount(prefixed: "history.row.") >= 2 },
                 "History shows \(tidy.rowCount(prefixed: "history.row.")) receipts, expected 2"
             )
+            // Undo keeps the merge in History, marked undone.
+            XCTAssertTrue(
+                tidy.until(20) {
+                    let top = newestReceipt(tidy)
+                    return top.hasPrefix("Merged \(copies).") && top.hasSuffix("Undone.")
+                },
+                "History's top row reads \"\(newestReceipt(tidy))\", expected \"Merged \(copies).\", undone"
+            )
         }
     }
 
-    /// Files: move one of two identical PDFs to Holding, see it there, put everything back.
-    /// Then the 120 MB sample shows under Large Files.
+    /// Files: move one of two identical PDFs to Holding, see it there, put everything back,
+    /// and the set is back under Duplicate Files. Then hold it again and empty Holding: the
+    /// file is deleted for good, the set is gone, and History says so. The 120 MB sample
+    /// shows under Large Files.
     @MainActor
     func testFilesHoldingAndPutBack() throws {
         let tidy = AppDriver(self)
@@ -152,10 +215,52 @@ final class EndToEndUITests: XCTestCase {
             tidy.until(20) { !tidy.element("holding.row.0").exists },
             "Holding still lists files after Put all back"
         )
+        XCTAssertTrue(tidy.element("holding.empty").waitForExistence(timeout: 20), "Holding isn't empty after Put all back")
+        tidy.popToRoot()
+
+        // Putting back checks the folders again, so the set comes back.
+        tidy.open("home.row.dupfiles")
+        XCTAssertTrue(tidy.element("dupfiles.row.0").waitForExistence(timeout: 30), "The set isn't back under Duplicate Files")
+
+        // Hold it again, then empty Holding, which deletes the file for good.
+        tidy.open("dupfiles.row.0")
+        XCTAssertTrue(primary.waitForExistence(timeout: 20), "No action bar for the duplicate files")
+        XCTAssertEqual(primary.label, "Move 1 to Holding")
+        tidy.tap("actionbar.primary")
+        let held = nextNotice(after: "Put back 1 file.", tidy)
+        XCTAssertTrue(held.hasPrefix("Moved 1 file to Holding."), "Notice reads \"\(held)\"")
+        tidy.popToRoot()
+
+        tidy.open("home.row.holding")
+        XCTAssertTrue(tidy.element("holding.row.0").waitForExistence(timeout: 20), "Nothing in Holding after the second move")
+        XCTAssertTrue(primary.waitForExistence(timeout: 10), "No Empty Holding")
+        XCTAssertEqual(primary.label, "Empty Holding")
+        tidy.tap("actionbar.primary")
+        XCTAssertEqual(tidy.reviewTitle(), "Remove 1 file for good?")
+        XCTAssertEqual(tidy.element("review.confirm").label, "Delete 1 file")
+        tidy.tap("review.confirm")
+        let deleted = nextNotice(after: held, tidy)
+        attach(text: deleted, named: "notice-files-delete")
+        XCTAssertTrue(deleted.hasPrefix("Deleted 1 file."), "Notice reads \"\(deleted)\"")
+        XCTAssertTrue(tidy.element("holding.empty").waitForExistence(timeout: 20), "Holding isn't empty after Empty Holding")
+        tidy.popToRoot()
+
+        // Only its twin is left, so there's no set to list.
+        tidy.open("home.row.dupfiles")
+        XCTAssertTrue(tidy.allTidy().waitForExistence(timeout: 30), "Duplicate Files isn't all tidy after the delete")
+        XCTAssertFalse(tidy.element("dupfiles.row.0").exists, "Duplicate Files still lists the set")
         tidy.popToRoot()
 
         tidy.open("home.row.largefiles")
         XCTAssertTrue(tidy.element("largefiles.row.0").waitForExistence(timeout: 30), "The 120 MB sample isn't under Large Files")
+        tidy.popToRoot()
+
+        // Newest first, so the delete is the top row.
+        tidy.selectTab("tab.history", label: "History")
+        XCTAssertTrue(
+            tidy.until(20) { newestReceipt(tidy).hasPrefix("Deleted 1 file.") },
+            "History's top row reads \"\(newestReceipt(tidy))\", expected \"Deleted 1 file.\""
+        )
     }
 
     /// Contacts: merge the two "Jordan Rivera" cards. The backup and undo are checked
@@ -215,5 +320,35 @@ final class EndToEndUITests: XCTestCase {
         tidy.back()
         tidy.selectTab("tab.tidy", label: "Tidy")
         XCTAssertTrue(tidy.element("coverage.line").waitForExistence(timeout: 10), "Tidy didn't come back")
+    }
+
+    // MARK: Helpers
+
+    /// Waits for a notice other than `previous` and returns its text. The last notice can
+    /// still show, or be on its way out, when the next one comes, so its text is skipped.
+    @MainActor
+    private func nextNotice(
+        after previous: String, _ tidy: AppDriver, timeout: TimeInterval = 30,
+        file: StaticString = #filePath, line: UInt = #line
+    ) -> String {
+        let next = tidy.app.descendants(matching: .any)
+            .matching(NSPredicate(format: "identifier == 'notice.banner' AND label != %@", previous))
+            .firstMatch
+        var label = ""
+        let shown = tidy.until(timeout, every: 0.25) {
+            guard next.exists else { return false }
+            label = next.label
+            return true
+        }
+        XCTAssertTrue(shown, "No notice after \"\(previous)\"", file: file, line: line)
+        return label
+    }
+
+    /// The words of History's top row, the newest change ("Removed 4 photos. Nov 14, …"),
+    /// or "" if there's none. SwiftUI can hand a row's identifier down to the views inside
+    /// it, so the first one with words is used.
+    @MainActor
+    private func newestReceipt(_ tidy: AppDriver) -> String {
+        tidy.elements(prefixed: "history.row.").allElementsBoundByIndex.first { !$0.label.isEmpty }?.label ?? ""
     }
 }
