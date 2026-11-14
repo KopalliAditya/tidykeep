@@ -145,6 +145,9 @@ struct DuplicateFileSetView: View {
     let setID: String
     @Environment(FilesModel.self) private var files
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    /// The move is running, so the set leaving the list reads as moved, not gone.
+    @ViewState private var moving = false
+    /// Set when the move worked; the success haptic follows it.
     @ViewState private var moved = false
 
     var body: some View {
@@ -153,7 +156,7 @@ struct DuplicateFileSetView: View {
                 detail(group)
             } else {
                 ScrollView {
-                    AllTidyView(detail: moved ? Copy.Files.setMoved : Copy.Files.setGone)
+                    AllTidyView(detail: moving || moved ? Copy.Files.setMoved : Copy.Files.setGone)
                         .accessibilityIdentifier("dupfiles.done")
                 }
                 .background(Palette.groupedBackground)
@@ -168,9 +171,10 @@ struct DuplicateFileSetView: View {
     private var moveAction: BarAction? {
         guard let group = files.group(setID) else { return nil }
         return BarAction(title: Copy.Files.moveButton(group.movable.count), isBusy: files.isBusy) {
-            moved = true
+            moving = true
             Task {
-                if await !files.moveToHolding(group) { moved = false }
+                moved = await files.moveToHolding(group)
+                moving = false
             }
         }
     }
@@ -613,8 +617,9 @@ struct HoldingView: View {
     /// The review before deleting held files for good: what goes, that nothing outside Holding
     /// changes, and that it can't be undone (and leaves the user's other devices too, for
     /// iCloud Drive).
+    /// Confirming deletes exactly `items`: a file moved to Holding while the sheet was open isn't
+    /// in the review, so it stays.
     static func deleteRequest(_ items: [HoldingItem], in files: FilesModel, iCloud: Bool? = nil) -> ReviewRequest {
-        let isAll = items.count == files.held.count
         let iCloud = iCloud ?? items.contains(where: files.isInICloudDrive)
         return ReviewRequest(
             title: Copy.Files.removeTitle(items.count),
@@ -626,9 +631,7 @@ struct HoldingView: View {
                 undo: Copy.Files.undoDelete(iCloud: iCloud)
             ),
             confirmTitle: Copy.Files.deleteButton(items.count),
-            confirm: {
-                if isAll { await files.emptyHolding() } else { await files.delete(items) }
-            }
+            confirm: { await files.delete(items) }
         )
     }
 }

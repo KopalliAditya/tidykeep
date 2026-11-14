@@ -32,6 +32,7 @@ struct FoldersSection: View {
                     .frame(minHeight: 44)
                     .contentShape(Rectangle())
             }
+            .rowButtonStyle()
             .accessibilityHint(Copy.Files.chooseFoldersHint)
             .accessibilityIdentifier("folders.add")
         } header: {

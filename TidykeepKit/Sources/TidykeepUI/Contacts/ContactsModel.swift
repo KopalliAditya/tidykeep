@@ -511,7 +511,7 @@ public final class ContactsModel {
     /// Deletes backups no receipt points to: left by a merge cut off before it was recorded
     /// or saved, or by receipts cleared from History. Without a receipt they can't be used
     /// to undo anything.
-    private func deleteOrphanBackups() {
+    func deleteOrphanBackups() {
         let files = backupFiles()
         guard !files.isEmpty else { return }
         let decoder = JSONDecoder()

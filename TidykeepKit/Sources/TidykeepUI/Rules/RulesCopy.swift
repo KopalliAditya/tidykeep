@@ -18,7 +18,6 @@ extension Copy {
         static func albumsChosen(_ n: Int) -> String { n == 0 ? noAlbums : n.formatted() }
         static let screenshotsInAlbums = "Screenshots in albums"
         static let recentFiles = "Files changed in the last 7 days"
-        static let myCard = "My Card"
         static let alwaysKeepFooter = "These are never suggested. You can still delete them yourself in Photos, Files or Contacts."
 
         // MARK: What to look at
@@ -29,27 +28,6 @@ extension Copy {
         static let bigVideos = "Big videos over"
         static let largeFiles = "Large files over"
         static let takesEffect = "Takes effect next time you check."
-
-        // MARK: Folders
-
-        static let folders = "Folders"
-        static let noFolders = "No folders chosen"
-        static let addFolder = "Add folder…"
-        static let removeFolder = "Stop checking"
-        static let foldersFooter = "\(appName) only looks inside folders you choose. Files only in iCloud are skipped, never downloaded."
-
-        // MARK: Contacts
-
-        static let contacts = "Contacts"
-        static let contactsAccess = "Access"
-        static func access(_ access: ContactsModel.Access) -> String {
-            switch access {
-            case .notDetermined: "Not asked yet"
-            case .denied: Copy.General.off
-            case .allowed: "Allowed"
-            }
-        }
-        static let contactsFooter = "With My Card on, your own card is never part of a merge. Either way, it's always the card that stays."
 
         // MARK: Haptics
 
@@ -65,7 +43,7 @@ extension Copy {
         static let forgetConfirm = "Forget and check again"
         static let clearHistory = "Clear history"
         static let clearTitle = "Clear history?"
-        static let clearMessage = "Your photos, files and contacts aren't touched, but past changes can no longer be undone from History."
+        static let clearMessage = "Your photos, files and contacts aren't touched. Past changes can no longer be undone, and saved contact backups are deleted."
         static let clearConfirm = "Clear history"
         static let savedDataFooter = "Saved analysis lets a check pick up where it left off. Both stay on this iPhone."
 

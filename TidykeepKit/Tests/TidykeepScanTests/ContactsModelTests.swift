@@ -357,6 +357,21 @@ import TidykeepVision
 
     // MARK: Reset
 
+    @Test func clearingHistoryDeletesBackupsRightAway() async throws {
+        let store = pair()
+        let photos = temporaryDirectory("contacts-photos-\(UUID().uuidString)")
+        let state = AppState(photoSource: FolderPhotoSource(folder: photos), analyzer: VisionFrameAnalyzer(), directory: data, defaults: freshDefaults(), contactStore: store)
+        await state.contacts.start()
+        let group = try #require(state.contacts.groups.first)
+        await state.contacts.merge(group.id, keeperID: group.keeperID, choices: MergeChoices(nameFrom: group.keeperID))
+        #expect(state.contacts.backupCount == 1)
+        let cardsBefore = await store.cards()
+
+        state.clearHistory()
+        #expect(state.contacts.backupCount == 0)
+        #expect(await store.cards() == cardsBefore)
+    }
+
     @Test func resetClearsBackupsButNeverCards() async throws {
         let store = pair()
         let defaults = freshDefaults()

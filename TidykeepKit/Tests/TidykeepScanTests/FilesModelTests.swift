@@ -194,6 +194,36 @@ import TidykeepFiles
         #expect(model.checkedCount == 3)
     }
 
+    @Test func emptyHoldingDeletesOnlyWhatTheReviewShowed() async throws {
+        let model = await seeded()
+        #expect(await model.moveToHolding(try #require(model.duplicateGroups.first)))
+        let review = HoldingView.deleteRequest(model.held, in: model)
+        // Moved while the sheet was open, so not in the review.
+        let large = try #require(model.largeFiles.first)
+        #expect(await model.moveToHolding([large]))
+        #expect(model.holdingCount == 2)
+
+        await review.confirm()
+        #expect(model.held.map(\.name) == ["Big export.mov"])
+        #expect(!FileManager.default.fileExists(atPath: sample.appendingPathComponent("Trip notes copy.pdf").path))
+    }
+
+    @Test func undoDuringAnotherMoveWaitsForIt() async throws {
+        let model = await seeded()
+        #expect(await model.moveToHolding(try #require(model.duplicateGroups.first)))
+        let receipt = try #require(history.receipts.first { $0.kind == .filesHeld })
+        let large = try #require(model.largeFiles.first)
+        let move = Task { await model.moveToHolding([large]) }
+        for _ in 0..<1_000 where !model.isBusy { await Task.yield() }
+        #expect(model.isBusy)
+
+        await model.putBack(receipt)
+        #expect(await move.value)
+        #expect(model.held.map(\.name) == ["Big export.mov"])
+        #expect(history.receipt(receipt.id)?.status == .undone)
+        #expect(FileManager.default.fileExists(atPath: sample.appendingPathComponent("Trip notes copy.pdf").path))
+    }
+
     @Test func holdingAndFoldersSurviveARelaunch() async throws {
         let model = await seeded()
         #expect(await model.moveToHolding(try #require(model.duplicateGroups.first)))

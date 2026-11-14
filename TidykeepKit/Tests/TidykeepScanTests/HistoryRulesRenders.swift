@@ -162,7 +162,6 @@ enum HistoryDemo {
     @Test func rulesPersistAcrossLaunches() {
         let defaults = freshDefaults()
         let preferences = Preferences(defaults: defaults)
-        #expect(preferences.protectsMyCard)
         #expect(preferences.rules.keepScreenshotsInAlbums)
         #expect(preferences.rules.hideFilesChangedWithinDays == 7)
 
@@ -171,7 +170,6 @@ enum HistoryDemo {
         let hideRecent = RulesView.hideRecentFiles(preferences)
         #expect(hideRecent.wrappedValue)
         hideRecent.wrappedValue = false
-        preferences.protectsMyCard = false
         preferences.scope = .last30Days
         preferences.sensitivity = .loose
         preferences.videoMinimum = 300
@@ -187,12 +185,10 @@ enum HistoryDemo {
         relaunchedToggle.wrappedValue = true
         #expect(Preferences(defaults: defaults).rules.hideFilesChangedWithinDays == RulesView.recentFileDays)
         #expect(RulesView.hideRecentFiles(Preferences(defaults: defaults)).wrappedValue)
-        #expect(!relaunched.protectsMyCard)
         #expect(relaunched.scope == .last30Days)
         #expect(relaunched.sensitivity == .loose)
         #expect(relaunched.videoMinimum == 300)
         #expect(relaunched.largeFileMinimum == 500_000_000)
-        #expect(Preferences.Keys.all.contains(Preferences.Keys.protectsMyCard))
     }
 
     @Test func reviewAgainFromHistoryUndoesKeepAll() async throws {

@@ -76,13 +76,15 @@ extension Copy {
 
         static let duplicatesTitle = Home.duplicateFiles
         /// `sureNothing` is false when the check didn't see the folders, so an empty list
-        /// can't be called "All tidy".
+        /// can't be called done. When it is, "All tidy" below says the rest.
         static func duplicatesSummary(sets: Int, extras: Int, bytes: Int64, sureNothing: Bool = true) -> String {
-            guard sets > 0 else { return sureNothing ? Empty.allTidy : notChecked }
+            guard sets > 0 else { return sureNothing ? checked : notChecked }
             return "\(Copy.sets(sets)) · \(extraCopies(extras)) · \(Copy.bytes(bytes))"
         }
         /// The headline when the folders couldn't be checked; the error below says why.
         static let notChecked = "Not checked"
+        /// The headline above "All tidy" once the folders were checked.
+        static let checked = "Done checking"
         static func noDuplicates(folders: Int) -> String {
             "No identical files in \(count(folders, "folder", "folders"))."
         }
@@ -129,7 +131,7 @@ extension Copy {
 
         static let largeTitle = Home.largeFiles
         static func largeSummary(_ n: Int, bytes: Int64, minimum: Int64, sureNothing: Bool = true) -> String {
-            guard n > 0 else { return sureNothing ? "Nothing over \(Copy.bytes(minimum))" : notChecked }
+            guard n > 0 else { return sureNothing ? checked : notChecked }
             return "\(files(n)) over \(Copy.bytes(minimum)) · \(Copy.bytes(bytes))"
         }
         static func noLargeFiles(minimum: Int64) -> String { "No files over \(Copy.bytes(minimum))." }

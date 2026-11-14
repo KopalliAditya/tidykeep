@@ -27,6 +27,7 @@ struct ContactsRulesSection: View {
                 .accessibilityIdentifier("rules.contacts.backups")
             if contacts.backupCount > 0 {
                 Button(Copy.Contacts.deleteBackups, role: .destructive) { confirmingDelete = true }
+                    .rowButtonStyle()
                     .frame(minHeight: 44)
                     .accessibilityIdentifier("rules.contacts.deleteBackups")
                     .confirmationDialog(Copy.Contacts.deleteBackupsTitle, isPresented: $confirmingDelete, titleVisibility: .visible) {
@@ -40,6 +41,7 @@ struct ContactsRulesSection: View {
                 LabeledContent(Copy.Contacts.keptApartTitle, value: Copy.Contacts.groups(contacts.keptApart.count))
                     .accessibilityIdentifier("rules.contacts.keptApart")
                 Button(Copy.Contacts.suggestAgain) { contacts.suggestAgain() }
+                    .rowButtonStyle()
                     .frame(minHeight: 44)
                     .accessibilityIdentifier("rules.contacts.suggestAgain")
             }
@@ -62,12 +64,14 @@ struct ContactsRulesSection: View {
                 }
             }
             .disabled(isAsking)
+            .rowButtonStyle()
             .frame(minHeight: 44)
             .accessibilityIdentifier("rules.contacts.allow")
         case .denied:
             // Restricted access can't be turned on in Settings.
             if Platform.canOpenSettings, !contacts.isRestricted {
                 Button(Copy.General.openSettings) { Platform.openSettings() }
+                    .rowButtonStyle()
                     .frame(minHeight: 44)
                     .accessibilityIdentifier("rules.contacts.settings")
             }

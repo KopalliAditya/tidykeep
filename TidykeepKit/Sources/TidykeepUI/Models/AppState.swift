@@ -136,8 +136,10 @@ public final class AppState {
 
     // MARK: Saved data
 
+    /// Clears History and the contact backups only its receipts could use.
     public func clearHistory() {
         history.clear()
+        contacts.deleteOrphanBackups()
         notices.show(Copy.Notices.historyCleared, systemImage: "clock.arrow.circlepath")
     }
 }

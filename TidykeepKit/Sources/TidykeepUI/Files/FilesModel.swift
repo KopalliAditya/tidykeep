@@ -6,7 +6,8 @@ import TidykeepFiles
 /// Files in folders the user chose: duplicates, large files and Holding.
 ///
 /// The folders are remembered as bookmarks in `folders.json`, and what is held in
-/// `holding.json`, both in the model's directory (in memory when it is nil). Each check
+/// `holding.json`, both in the model's directory. With no directory the folders stay in
+/// memory and Holding's list goes to a new temporary file. Each check
 /// first brings Holding in step with what is really in "Held by Tidykeep", then lists the
 /// files, then compares the ones that share a size.
 ///
@@ -677,7 +678,11 @@ public final class FilesModel {
     }
 
     private func putBackItems(_ items: [HoldingItem], announce: Bool) async -> [HoldingItem] {
-        guard !items.isEmpty, !isBusy else { return [] }
+        guard !items.isEmpty else { return [] }
+        await waitUntilIdle()
+        // Only what is still held: the wait may have put some of it back or deleted it.
+        let items = items.filter { item in held.contains { $0.id == item.id } }
+        guard !items.isEmpty else { return [] }
         isBusy = true
         defer { isBusy = false }
         changeCount += 1
@@ -794,7 +799,11 @@ public final class FilesModel {
 
     /// Deletes held files for good. The screen confirms first.
     func delete(_ items: [HoldingItem]) async {
-        guard !items.isEmpty, !isBusy else { return }
+        guard !items.isEmpty else { return }
+        await waitUntilIdle()
+        // Only what is still held: the wait may have put some of it back.
+        let items = items.filter { item in held.contains { $0.id == item.id } }
+        guard !items.isEmpty else { return }
         isBusy = true
         defer { isBusy = false }
         changeCount += 1
@@ -849,6 +858,15 @@ public final class FilesModel {
     }
 
     // MARK: Holding
+
+    /// Waits for a move, put-back or delete to finish, so Undo tapped during another move still
+    /// happens. Nothing suspends between this returning and the caller setting `isBusy`, so two
+    /// waiters can't both go ahead.
+    private func waitUntilIdle() async {
+        while isBusy {
+            try? await Task.sleep(for: .milliseconds(50))
+        }
+    }
 
     private func reloadHolding() async {
         do {

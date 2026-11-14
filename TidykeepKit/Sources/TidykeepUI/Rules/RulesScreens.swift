@@ -13,7 +13,6 @@ struct RulesView: View {
     @Environment(ContactsModel.self) private var contacts
     @Environment(History.self) private var history
     @Environment(Preferences.self) private var preferences
-    @Environment(\.folderActions) private var folderActions
     @AppStorage(Haptics.key) private var hapticsOn = true
     @ViewState private var confirmsForget = false
     @ViewState private var confirmsClear = false
@@ -22,8 +21,8 @@ struct RulesView: View {
         Form {
             alwaysKeep
             whatToLookAt
-            folders
-            contactsSection
+            FoldersSection()
+            ContactsRulesSection()
             haptics
             savedData
             about
@@ -64,9 +63,6 @@ struct RulesView: View {
             }
             Toggle(isOn: hideRecentFiles) {
                 Label(Copy.Rules.recentFiles, systemImage: "doc.badge.clock")
-            }
-            Toggle(isOn: Binding(get: { preferences.protectsMyCard }, set: { preferences.protectsMyCard = $0 })) {
-                Label(Copy.Rules.myCard, systemImage: "person.crop.circle")
             }
         } header: {
             Text(Copy.Rules.alwaysKeep)
@@ -129,65 +125,6 @@ struct RulesView: View {
         }
     }
 
-    // MARK: Folders
-
-    private var folders: some View {
-        Section {
-            if files.folderNames.isEmpty {
-                Text(Copy.Rules.noFolders)
-                    .foregroundStyle(.secondary)
-            }
-            ForEach(files.folderNames, id: \.self) { name in
-                folderRow(name)
-            }
-            Button {
-                folderActions.add?()
-            } label: {
-                Label(Copy.Rules.addFolder, systemImage: "folder.badge.plus")
-                    .foregroundStyle(folderActions.add == nil ? Color.secondary : Palette.accent)
-            }
-            .rowButtonStyle()
-            .disabled(folderActions.add == nil)
-        } header: {
-            Text(Copy.Rules.folders)
-        } footer: {
-            Text(Copy.Rules.foldersFooter)
-        }
-    }
-
-    @ViewBuilder
-    private func folderRow(_ name: String) -> some View {
-        let label = Label(name, systemImage: "folder")
-        if let remove = folderActions.remove {
-            label
-                .swipeActions(edge: .trailing) {
-                    Button(Copy.Rules.removeFolder, role: .destructive) { remove(name) }
-                }
-                .accessibilityActions {
-                    Button(Copy.Rules.removeFolder) { remove(name) }
-                }
-        } else {
-            label
-        }
-    }
-
-    // MARK: Contacts
-
-    private var contactsSection: some View {
-        Section {
-            LabeledContent(Copy.Rules.contactsAccess, value: Copy.Rules.access(contacts.access))
-            if contacts.access == .denied, Platform.canOpenSettings {
-                Button(Copy.General.openSettings) { Platform.openSettings() }
-                    .rowButtonStyle()
-                    .foregroundStyle(Palette.accent)
-            }
-        } header: {
-            Text(Copy.Rules.contacts)
-        } footer: {
-            Text(Copy.Rules.contactsFooter)
-        }
-    }
-
     // MARK: Haptics
 
     private var haptics: some View {
@@ -242,34 +179,6 @@ struct RulesView: View {
         } header: {
             Text(Copy.Rules.about)
         }
-    }
-}
-
-// MARK: - Folder actions
-
-/// The folder picker and folder removal, provided by the Files area with
-/// `.environment(\.folderActions, ...)` at the root. Until it does, Rules shows "Add folder…"
-/// dimmed and folder rows without a remove action.
-struct FolderActions: Sendable {
-    /// Opens the folder picker.
-    var add: (@MainActor @Sendable () -> Void)?
-    /// Stops checking the folder with this name.
-    var remove: (@MainActor @Sendable (String) -> Void)?
-
-    init(add: (@MainActor @Sendable () -> Void)? = nil, remove: (@MainActor @Sendable (String) -> Void)? = nil) {
-        self.add = add
-        self.remove = remove
-    }
-}
-
-private struct FolderActionsKey: EnvironmentKey {
-    static let defaultValue = FolderActions()
-}
-
-extension EnvironmentValues {
-    var folderActions: FolderActions {
-        get { self[FolderActionsKey.self] }
-        set { self[FolderActionsKey.self] = newValue }
     }
 }
 
