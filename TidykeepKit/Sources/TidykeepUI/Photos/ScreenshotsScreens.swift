@@ -11,12 +11,13 @@ struct ScreenshotsView: View {
     @Environment(\.dynamicTypeSize) private var typeSize
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @ViewState private var isSelecting: Bool
-    @ViewState private var filter = Copy.Screenshots.Filter.all
+    @ViewState private var filter: Copy.Screenshots.Filter
     @ViewState private var review: ReviewRequest?
     @ViewState private var viewing: AssetMeta?
 
-    init(isSelecting: Bool = false) {
+    init(isSelecting: Bool = false, filter: Copy.Screenshots.Filter = .all) {
         _isSelecting = ViewState(initialValue: isSelecting)
+        _filter = ViewState(initialValue: filter)
     }
 
     var body: some View {
@@ -46,6 +47,16 @@ struct ScreenshotsView: View {
     private var shown: [AssetMeta] {
         let now = Date()
         return photos.screenshots.filter { filter.includes($0.creationDate, now: now) }
+    }
+
+    /// The marked screenshots the filter shows: the only ones counted, reviewed and removed.
+    private var markedShown: [String] {
+        shown.map(\.id).filter(photos.markedScreenshots.contains)
+    }
+
+    /// Marked screenshots the filter hides. They stay marked for when the filter changes back.
+    private var hiddenMarkedCount: Int {
+        photos.screenshots.count { photos.markedScreenshots.contains($0.id) } - markedShown.count
     }
 
     @ViewBuilder
@@ -112,9 +123,15 @@ struct ScreenshotsView: View {
 
     private var header: some View {
         VStack(alignment: .leading, spacing: Space.xs) {
-            Text(Copy.Screenshots.summary(shown.count, marked: photos.markedScreenshots.count))
+            Text(Copy.Screenshots.summary(shown.count, marked: markedShown.count))
                 .font(.subheadline.weight(.medium))
                 .contentTransition(.numericText())
+            if hiddenMarkedCount > 0 {
+                Text(Copy.Screenshots.hiddenMarked(hiddenMarkedCount))
+                    .font(.footnote)
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
             if isSelecting {
                 Text(Copy.Screenshots.selectHint)
                     .font(.footnote)
@@ -172,9 +189,10 @@ struct ScreenshotsView: View {
         .accessibilityValue(filter.title)
     }
 
-    /// "Remove 4 screenshots", once any are marked.
+    /// "Remove 4 screenshots", once any on screen are marked. Marks the filter hides aren't
+    /// part of it, so the count matches what's shown.
     private var removeAction: BarAction? {
-        let ids = photos.screenshots.map(\.id).filter(photos.markedScreenshots.contains)
+        let ids = markedShown
         guard !ids.isEmpty else { return nil }
         return BarAction(
             title: Copy.Screenshots.removeButton(ids.count),

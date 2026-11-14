@@ -14,6 +14,9 @@ extension Copy.Copies {
     static let setGone = "That set is gone."
     static let emptyDetail = "No photo is saved twice."
     static let protectedKeeper = "A favorite or edited copy is always the one kept, so the choice is made for you."
+    static let keptSafeFirst = "Copies kept safe always stay, so only a copy listed above them can be the one kept."
+    static let cantChooseProtectedKeeper = "Can't be the one kept. A favorite or edited copy is."
+    static let cantChooseKeptSafeFirst = "Can't be the one kept. A copy above it is kept safe."
     static let membersHeader = "Copies"
     static let mergeThisTitle = "Merge these copies?"
     static let mergeThisConfirm = "Merge copies"
@@ -50,9 +53,10 @@ extension Copy.Copies {
         }
     }
 
-    /// The Why line of a set's reason card.
-    static func why(_ relation: CopyRelation) -> String {
-        "\(Copy.Copies.relation(relation)). Keeps the copy with the most detail."
+    /// The Why line of a set's reason card. A favorite or edited copy is kept even when
+    /// another has more detail.
+    static func why(_ relation: CopyRelation, keeperIsProtected: Bool = false) -> String {
+        "\(Copy.Copies.relation(relation)). \(keeperIsProtected ? "Keeps the favorite or edited copy." : "Keeps the copy with the most detail.")"
     }
 
     /// The Why line of the review sheet for one or more sets.
@@ -62,7 +66,14 @@ extension Copy.Copies {
     }
 
     static func keptSafe(_ n: Int) -> String {
-        n == 1 ? "1 favorite or edited copy stays as well." : "\(n.formatted()) favorite or edited copies stay as well."
+        n == 1 ? "1 other copy is kept safe, so it stays as well." : "\(n.formatted()) other copies are kept safe, so they stay as well."
+    }
+
+    /// Spoken after a copy is chosen, numbered as the set's rows are: "Keeping copy 2 of 3. 2 to remove."
+    static func keepingOnly(_ id: String, in group: PhotoGroup, removing: Int) -> String {
+        let number = (group.members.firstIndex { $0.id == id } ?? 0) + 1
+        let rest = removing == 0 ? "Nothing to remove." : "\(removing.formatted()) to remove."
+        return "Keeping copy \(number) of \(group.members.count). \(rest)"
     }
 
     static func undo(until date: Date) -> String {
@@ -88,6 +99,14 @@ extension Copy.Screenshots {
 
     static func summary(_ n: Int, marked: Int) -> String {
         marked == 0 ? "\(Copy.screenshots(n)), newest first" : "\(Copy.screenshots(n)) · \(marked.formatted()) marked"
+    }
+
+    /// Under the count when the filter hides some marked screenshots: they stay marked, but
+    /// only the ones on screen are removed.
+    static func hiddenMarked(_ n: Int) -> String {
+        n == 1
+            ? "1 marked screenshot isn't shown with this filter, so it won't be removed."
+            : "\(n.formatted()) marked screenshots aren't shown with this filter, so they won't be removed."
     }
 
     static func markAllLabel(_ month: Date) -> String { "Mark all from \(Copy.month(month))" }

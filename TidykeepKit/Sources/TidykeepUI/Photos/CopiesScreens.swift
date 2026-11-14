@@ -276,25 +276,25 @@ struct CopySetView: View {
         let alsoKept = group.members.count - removing.count - 1
         let relation = removing.first.map { photos.relation(of: $0, in: group) } ?? CopyRelation.of(group, formats: photos.formats)
         return Reason(
-            why: Copy.Copies.why(relation),
+            why: Copy.Copies.why(relation, keeperIsProtected: photos.copyKeeper(in: group).isProtected),
             keptSafe: alsoKept > 0 ? Copy.Copies.keptSafe(alsoKept) : nil,
             undo: Copy.Copies.undo(until: Receipt.recentlyDeletedDeadline(from: Date()))
         )
     }
 
     private func members(_ group: PhotoGroup, keeper: AssetMeta) -> some View {
-        // A favorite or edited copy is the keeper by rule, so there's nothing to choose.
-        let locked = group.members.contains { group.isProtected($0.id) }
-        return CardSection(title: Copy.Copies.membersHeader, footer: locked ? Copy.Copies.protectedKeeper : nil) {
+        let lock = lock(group, keeper: keeper)
+        return CardSection(title: Copy.Copies.membersHeader, footer: lock?.footer) {
             VStack(spacing: 0) {
                 ForEach(Array(group.members.enumerated()), id: \.element.id) { index, meta in
+                    let isKeeper = meta.id == keeper.id
                     CopyMemberRow(
                         meta: meta,
                         index: index + 1,
                         total: group.members.count,
                         group: group,
-                        isKeeper: meta.id == keeper.id,
-                        isLocked: locked
+                        isKeeper: isKeeper,
+                        lockReason: isKeeper || photos.canChooseCopy(meta.id, in: group) ? nil : lock?.row
                     ) {
                         withAnimation(Motion.standard(reduceMotion)) { photos.keepOnly(meta.id, in: group) }
                     }
@@ -305,6 +305,17 @@ struct CopySetView: View {
             }
             .background(Palette.card, in: RoundedRectangle(cornerRadius: Radius.card, style: .continuous))
         }
+    }
+
+    /// Why some copies can't be the one kept, for the footer and those rows, or nil when any
+    /// copy can be chosen. A favorite or edited keeper decides it outright; otherwise a copy
+    /// kept safe by the rules stays and takes the merge from any copy listed below it.
+    private func lock(_ group: PhotoGroup, keeper: AssetMeta) -> (footer: String, row: String)? {
+        if keeper.isProtected {
+            return (Copy.Copies.protectedKeeper, Copy.Copies.cantChooseProtectedKeeper)
+        }
+        let blocked = group.members.contains { $0.id != keeper.id && !photos.canChooseCopy($0.id, in: group) }
+        return blocked ? (Copy.Copies.keptSafeFirst, Copy.Copies.cantChooseKeptSafeFirst) : nil
     }
 }
 
@@ -346,71 +357,103 @@ private struct KeeperHero: View {
 }
 
 /// One copy in a set, as a radio row: Keeping, Remove or Kept safe, with its pixels, format
-/// and date. Tapping it keeps this copy instead.
+/// and date. Tapping it keeps this copy instead. A copy that can't be the one kept isn't a
+/// button: it shows no radio circle and says why.
 private struct CopyMemberRow: View {
     let meta: AssetMeta
     let index: Int
     let total: Int
     let group: PhotoGroup
     let isKeeper: Bool
-    let isLocked: Bool
+    /// Why this copy can't be chosen, or nil when it can (or already is).
+    let lockReason: String?
     let choose: () -> Void
     @Environment(PhotosModel.self) private var photos
     @Environment(\.dynamicTypeSize) private var typeSize
 
     var body: some View {
-        Button {
-            if !isKeeper && !isLocked { choose() }
-        } label: {
-            HStack(spacing: Space.m) {
-                PhotoThumbnail(id: meta.id, pixelSize: 200)
-                    .frame(width: 56, height: 56)
-                    .clipShape(RoundedRectangle(cornerRadius: Radius.tile * 2, style: .continuous))
-                    .accessibilityIgnoresInvertColors()
-                VStack(alignment: .leading, spacing: Space.hair) {
-                    HStack(spacing: Space.xs) {
-                        Text(status)
-                            .font(.subheadline.weight(.semibold))
-                            .foregroundStyle(isKeeper ? Palette.accent : .primary)
-                        if meta.isFavorite {
-                            Image(systemName: "heart.fill")
-                                .font(.caption)
-                                .foregroundStyle(Palette.favorite)
-                        }
+        if lockReason == nil {
+            Button {
+                if !isKeeper { choose() }
+            } label: {
+                content
+            }
+            .buttonStyle(.plain)
+            .accessibilityElement(children: .ignore)
+            .accessibilityLabel(label)
+            .accessibilityValue(value)
+            .accessibilityAddTraits(isKeeper ? [.isSelected, .isButton] : .isButton)
+            .accessibilityActions {
+                if !isKeeper {
+                    Button(Copy.Copies.keepThisInstead, action: choose)
+                }
+            }
+        } else {
+            content
+                .accessibilityElement(children: .ignore)
+                .accessibilityLabel(label)
+                .accessibilityValue(value)
+        }
+    }
+
+    private var content: some View {
+        HStack(spacing: Space.m) {
+            PhotoThumbnail(id: meta.id, pixelSize: 200)
+                .frame(width: 56, height: 56)
+                .clipShape(RoundedRectangle(cornerRadius: Radius.tile * 2, style: .continuous))
+                .accessibilityIgnoresInvertColors()
+            VStack(alignment: .leading, spacing: Space.hair) {
+                HStack(spacing: Space.xs) {
+                    Text(status)
+                        .font(.subheadline.weight(.semibold))
+                        .foregroundStyle(isKeeper ? Palette.accent : .primary)
+                    if meta.isFavorite {
+                        Image(systemName: "heart.fill")
+                            .font(.caption)
+                            .foregroundStyle(Palette.favorite)
                     }
-                    Text(Copy.Copies.memberLine(meta, format: photos.formats[meta.id]))
+                }
+                Text(Copy.Copies.memberLine(meta, format: photos.formats[meta.id]))
+                    .font(.footnote)
+                    .foregroundStyle(.secondary)
+                    .monospacedDigit()
+                if !isKeeper {
+                    Text(Copy.Copies.relation(photos.relation(of: meta, in: group)))
                         .font(.footnote)
                         .foregroundStyle(.secondary)
-                        .monospacedDigit()
-                    if !isKeeper {
-                        Text(Copy.Copies.relation(photos.relation(of: meta, in: group)))
-                            .font(.footnote)
-                            .foregroundStyle(.secondary)
-                    }
-                }
-                .fixedSize(horizontal: false, vertical: true)
-                Spacer(minLength: Space.s)
-                if !typeSize.isAccessibilitySize || isKeeper {
-                    Image(systemName: isKeeper ? "checkmark.circle.fill" : isProtected ? "lock.fill" : "circle")
-                        .font(.title3)
-                        .foregroundStyle(isKeeper ? AnyShapeStyle(Palette.accent) : AnyShapeStyle(.tertiary))
                 }
             }
-            .padding(.horizontal, Space.l)
-            .padding(.vertical, Space.s + 2)
-            .frame(minHeight: 44)
-            .contentShape(Rectangle())
-        }
-        .buttonStyle(.plain)
-        .accessibilityElement(children: .ignore)
-        .accessibilityLabel(Copy.Copies.memberLabel(index: index, of: total, meta, format: photos.formats[meta.id]))
-        .accessibilityValue(meta.isFavorite ? "\(status). \(Copy.General.favorite)" : status)
-        .accessibilityAddTraits(isKeeper ? [.isSelected, .isButton] : .isButton)
-        .accessibilityActions {
-            if !isKeeper && !isLocked {
-                Button(Copy.Copies.keepThisInstead, action: choose)
+            .fixedSize(horizontal: false, vertical: true)
+            Spacer(minLength: Space.s)
+            if let symbol, !typeSize.isAccessibilitySize || isKeeper {
+                Image(systemName: symbol)
+                    .font(isKeeper || lockReason == nil ? .title3 : .body)
+                    .foregroundStyle(isKeeper ? AnyShapeStyle(Palette.accent) : AnyShapeStyle(.tertiary))
             }
         }
+        .padding(.horizontal, Space.l)
+        .padding(.vertical, Space.s + 2)
+        .frame(minHeight: 44)
+        .contentShape(Rectangle())
+    }
+
+    /// A check on the keeper, a radio circle on copies that can be chosen, a lock on other
+    /// copies kept safe, and nothing on a copy that goes and can't be chosen.
+    private var symbol: String? {
+        if isKeeper { return "checkmark.circle.fill" }
+        if lockReason == nil { return "circle" }
+        return isProtected ? "lock.fill" : nil
+    }
+
+    private var label: String {
+        Copy.Copies.memberLabel(index: index, of: total, meta, format: photos.formats[meta.id])
+    }
+
+    private var value: String {
+        // A copy kept safe stays either way, so "Kept safe" says enough.
+        [status, meta.isFavorite ? Copy.General.favorite : nil, isProtected ? nil : lockReason]
+            .compactMap { $0 }
+            .joined(separator: ". ")
     }
 
     private var isProtected: Bool { group.isProtected(meta.id) }

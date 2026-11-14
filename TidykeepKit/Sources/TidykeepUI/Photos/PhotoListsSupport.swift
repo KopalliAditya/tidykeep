@@ -76,6 +76,17 @@ extension PhotosModel {
         )
     }
 
+    /// Whether choosing this copy makes it the one kept. Copies kept safe (favorites, edits,
+    /// documents, rule-kept) stay whatever is chosen, and the merge goes onto the first copy
+    /// kept, so only a copy listed above every kept-safe one can be chosen.
+    func canChooseCopy(_ id: String, in group: PhotoGroup) -> Bool {
+        for member in group.members {
+            if member.id == id { return true }
+            if group.isProtected(member.id) { return false }
+        }
+        return false
+    }
+
     /// Albums any photo of the set is in, by title: where the kept copy will be after merging.
     func albumTitles(for group: PhotoGroup) -> [String] {
         let ids = Set(group.members.map(\.id))

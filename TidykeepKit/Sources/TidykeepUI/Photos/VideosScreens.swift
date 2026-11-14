@@ -108,8 +108,9 @@ struct BigVideosView: View {
             .accessibilityValue(isMarked ? Copy.Screenshots.marked : Copy.Screenshots.notMarked)
             .accessibilityAddTraits(isMarked ? .isSelected : [])
         } else {
+            // Marked videos keep a check on the poster after Done, so it's clear what Remove takes.
             NavigationLink(value: Route.video(meta.id)) {
-                VideoRow(meta: meta, mark: nil)
+                VideoRow(meta: meta, mark: nil, badge: isMarked)
             }
             .accessibilityValue(isMarked ? Copy.Screenshots.marked : "")
             .accessibilityAddTraits(isMarked ? .isSelected : [])
@@ -148,6 +149,8 @@ private struct VideoRow: View {
     let meta: VideoMeta
     /// Whether it's marked, in select mode; nil otherwise.
     let mark: Bool?
+    /// Outside select mode: a check on the poster of a marked video.
+    var badge = false
     @Environment(\.dynamicTypeSize) private var typeSize
 
     var body: some View {
@@ -162,7 +165,7 @@ private struct VideoRow: View {
                     .contentTransition(.symbolEffect(.replace))
             }
             layout {
-                VideoPoster(meta: meta, width: typeSize.isAccessibilitySize ? 160 : 112)
+                VideoPoster(meta: meta, width: typeSize.isAccessibilitySize ? 160 : 112, isMarked: badge)
                 VStack(alignment: .leading, spacing: Space.hair) {
                     Text(Copy.day(meta.creationDate))
                         .font(.body.weight(.semibold))
@@ -188,14 +191,26 @@ private struct VideoRow: View {
     }
 }
 
-/// A video's poster frame, 16:9, with its length in the corner.
+/// A video's poster frame, 16:9, with its length in the corner and a check when marked.
 private struct VideoPoster: View {
     let meta: VideoMeta
     var width: CGFloat = 112
+    var isMarked = false
 
     var body: some View {
         PhotoThumbnail(id: meta.id, pixelSize: 400)
             .frame(width: width, height: width * 9 / 16)
+            .overlay(alignment: .topLeading) {
+                if isMarked {
+                    Image(systemName: "checkmark.circle.fill")
+                        .symbolRenderingMode(.palette)
+                        .foregroundStyle(Palette.onAccent, Palette.accent)
+                        .font(.body)
+                        .background(Circle().fill(.white).padding(2))
+                        .padding(Space.xs)
+                        .transition(.opacity)
+                }
+            }
             .overlay(alignment: .bottomTrailing) {
                 Text(Copy.clock(meta.duration))
                     .font(.caption2.weight(.semibold))

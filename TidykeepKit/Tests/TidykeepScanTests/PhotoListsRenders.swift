@@ -28,6 +28,12 @@ import AppKit
         await RenderHarness.render(CopySetView(groupID: set.id), named: "copy-set", state: state, height: 1_200)
         let review = state.photos.mergeReview(for: state.photos.copies)
         await renderSheet(ReviewSheet(request: review), named: "review-merge", state: state)
+
+        // The smallest copy is a favorite, so it's the one kept and the others can't be chosen.
+        let locked = try await CopiesDemo.state(favorite: "series00_frame0.jpg")
+        let lockedSet = try #require(locked.photos.copies.first { $0.members.count == 3 })
+        #expect(locked.photos.copyKeeper(in: lockedSet).isFavorite)
+        await RenderHarness.render(CopySetView(groupID: lockedSet.id), named: "copy-set-locked", state: locked, height: 1_200)
     }
 
     @Test func screenshots() async throws {
@@ -40,6 +46,8 @@ import AppKit
         await RenderHarness.render(ScreenshotsView(isSelecting: true), named: "screenshots-select", state: state)
         let review = state.photos.screenshotsReview(Array(state.photos.markedScreenshots), keepsAlbums: true)
         await renderSheet(ReviewSheet(request: review), named: "review-screenshots", state: state)
+        // Marks the filter hides are left out of the count and the bar, and said so.
+        await RenderHarness.render(ScreenshotsView(filter: .olderThanMonth), named: "screenshots-filtered", state: state)
     }
 
     @Test func videos() async throws {
@@ -47,6 +55,8 @@ import AppKit
         await RenderHarness.render(BigVideosView(), named: "videos", state: state)
         state.photos.markedVideos = ["video-concert", "video-drive"]
         await RenderHarness.render(BigVideosView(isSelecting: true), named: "videos-select", state: state)
+        // After Done, marked videos keep their check.
+        await RenderHarness.render(BigVideosView(), named: "videos-marked", state: state)
         await RenderHarness.render(VideoDetailView(videoID: "video-beach"), named: "video-detail", state: state)
         let review = state.photos.videosReview(Array(state.photos.markedVideos), minimum: state.preferences.videoMinimum)
         await renderSheet(ReviewSheet(request: review), named: "review-videos", state: state)
@@ -206,6 +216,31 @@ extension PhotoListsRenders {
         #expect(photos.copies.isEmpty)
     }
 
+    @Test func onlyCopiesAboveEveryKeptSafeOneCanBeChosen() async throws {
+        let state = try await Self.memoryState(MemoryPhotoSource(photos: []))
+        let photos = state.photos
+        let now = Date()
+        func copy(_ id: String, _ width: Int) -> (meta: AssetMeta, signals: FrameSignals) {
+            (AssetMeta(id: id, creationDate: now, pixelWidth: width, pixelHeight: width),
+             FrameSignals(embedding: QuantizedEmbedding([1, 0]), aesthetics: 0.5, isUtility: false, sharpness: 1, faceQualities: []))
+        }
+        // "b" is in an album the rules protect; "a" has the most detail and comes first.
+        let group = PhotoGroup(copies: [copy("a", 3_000), copy("b", 2_000), copy("c", 1_000)]).applying(keptByRules: ["b"])
+        #expect(photos.canChooseCopy("a", in: group))
+        #expect(photos.canChooseCopy("b", in: group))
+        #expect(!photos.canChooseCopy("c", in: group))
+
+        // Choosing "b" makes it the one kept; choosing "c" couldn't, since "b" always stays.
+        photos.keepOnly("b", in: group)
+        #expect(photos.copyKeeper(in: group).id == "b")
+        photos.keepOnly("c", in: group)
+        #expect(photos.copyKeeper(in: group).id == "b")
+
+        // Copies numbered as the rows are, best first, not by date.
+        #expect(Copy.Copies.keepingOnly("b", in: group, removing: 1) == "Keeping copy 2 of 3. 1 to remove.")
+        #expect(Copy.Copies.keepingOnly("a", in: group, removing: 0) == "Keeping copy 1 of 3. Nothing to remove.")
+    }
+
     @Test func copyTextIsPlain() {
         #expect(Copy.Videos.overMinimum(5, minimum: 60) == "5 videos over 1 minute")
         #expect(Copy.Videos.overMinimum(1, minimum: 300) == "1 video over 5 minutes")
@@ -214,6 +249,7 @@ extension PhotoListsRenders {
         let words = [
             Copy.Copies.explainer, Copy.Copies.undo(until: Date()), Copy.Copies.reviewWhy(sets: 2),
             Copy.Screenshots.keptSafeFooter(albums: true), Copy.Videos.footer(kept: 2), Copy.Videos.removesEverywhere,
+            Copy.Copies.keptSafeFirst, Copy.Copies.cantChooseKeptSafeFirst, Copy.Screenshots.hiddenMarked(2),
         ].joined(separator: " ").lowercased()
         for banned in ["we ", "oops", "!", "junk", "boost", "free up"] {
             #expect(!words.contains(banned), "\(banned)")
@@ -258,7 +294,8 @@ enum ListsDemo {
 /// they usually are, so the time window never takes them as similar shots.
 @MainActor
 enum CopiesDemo {
-    static func state() async throws -> AppState {
+    /// `favorite` names a file Photos would call a favorite.
+    static func state(favorite: String? = nil) async throws -> AppState {
         let library = temporaryDirectory("copies-library-\(UUID().uuidString)")
         let now = Date()
         func day(_ n: Double) -> Date { now.addingTimeInterval(-n * 86_400) }
@@ -281,6 +318,7 @@ enum CopiesDemo {
 
         try write(picture(hue: 0.29, size: CGSize(width: 1600, height: 1200), seed: 3), as: "meadow.jpg", in: library)
         manifest.files["meadow.jpg"] = .init(date: day(9))
+        if let favorite { manifest.files[favorite]?.favorite = true }
         try manifest.write(to: library)
 
         return try await start(DemoPhotoSource(folder: library), analyzer: HueAnalyzer(), findsCopies: true)
