@@ -11,6 +11,9 @@ import Testing
 // scripts/ci/run-tests.sh passes every TK_* variable through to the test process:
 //   TK_SEED_PHOTOS, TK_SEED_SCREENSHOTS, TK_SEED_VIDEOS, TK_SEED_BURSTS  how many were seeded
 //   TK_SEED_FIRST, TK_SEED_LAST    ISO 8601 capture dates of the oldest and newest
+//   TK_SEED_NAMES, TK_SEED_KEEPERS, TK_SEED_EXTRAS  file names, comma-separated: every
+//                                  seeded photo, the ones no flow may remove, and the ones
+//                                  the app may offer to remove
 //   TK_REQUIRE_ACCESS=1            fail, rather than skip, when access or the seed is missing
 //
 // Nothing here touches a real device's library or address book: every suite that reads
@@ -31,10 +34,21 @@ enum TestEnvironment {
 
     static func number(_ name: String) -> Int? { value(name).flatMap { Int($0) } }
 
+    /// A comma-separated list of file names.
+    static func names(_ name: String) -> [String]? {
+        value(name).map { $0.split(separator: ",").map(String.init) }
+    }
+
     static var seedPhotos: Int? { number("TK_SEED_PHOTOS") }
     static var seedScreenshots: Int? { number("TK_SEED_SCREENSHOTS") }
     static var seedVideos: Int? { number("TK_SEED_VIDEOS") }
     static var seedBursts: Int? { number("TK_SEED_BURSTS") }
+    /// Every seeded photo's file name.
+    static var seedNames: [String]? { names("TK_SEED_NAMES") }
+    /// Each burst's sharp frame and each copy set's original: no flow may remove them.
+    static var seedKeepers: [String]? { names("TK_SEED_KEEPERS") }
+    /// The extra frames and copies, which the app may offer to remove.
+    static var seedExtras: [String]? { names("TK_SEED_EXTRAS") }
     static var requiresAccess: Bool { value("TK_REQUIRE_ACCESS") == "1" }
 
     /// The seeded capture dates, widened by a day and a bit each way: EXIF dates carry no
@@ -97,6 +111,10 @@ struct CIPreconditionTests {
     @Test func theSeedIsDescribed() {
         #expect(TestEnvironment.seedPhotos != nil, "TK_SEED_PHOTOS not passed to the tests")
         #expect(TestEnvironment.seedRange != nil, "TK_SEED_FIRST and TK_SEED_LAST not passed to the tests")
+        #expect(
+            TestEnvironment.seedNames != nil && TestEnvironment.seedKeepers != nil && TestEnvironment.seedExtras != nil,
+            "TK_SEED_NAMES, TK_SEED_KEEPERS and TK_SEED_EXTRAS not passed to the tests"
+        )
     }
 }
 #endif

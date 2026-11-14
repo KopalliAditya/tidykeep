@@ -2,10 +2,15 @@
 # Grants an app privacy access on a simulator, so no test ever waits on a prompt.
 #
 #   scripts/ci/grant-privacy.sh <udid> <bundle-id> <service>...
+#   scripts/ci/grant-privacy.sh <udid> <bundle-id> --reset <service>...
 #
 # <service> is any name `xcrun simctl privacy` takes: photos, contacts, calendar, ...
 # A service that's already allowed is left alone (the UI tests may have answered the real
 # prompt, and granting again would replace that row).
+#
+# --reset takes the app's answer away instead, so the app asks again on its next launch
+# (PermissionUITests turns the prompts down). The app's row must then be gone from the
+# simulator's TCC.db; if simctl left it, it's removed there.
 #
 # Photos: on recent runtimes `simctl privacy grant photos` writes a row (auth_version 1)
 # that tccd reads as "not determined", so the app sees no access. Reported for Xcode 26.6
@@ -16,9 +21,14 @@
 # The app sees the change the next time it launches; each test run launches it afresh.
 set -euo pipefail
 
-udid="${1:?usage: grant-privacy.sh <udid> <bundle-id> <service>...}"
-bundle="${2:?usage: grant-privacy.sh <udid> <bundle-id> <service>...}"
+udid="${1:?usage: grant-privacy.sh <udid> <bundle-id> [--reset] <service>...}"
+bundle="${2:?usage: grant-privacy.sh <udid> <bundle-id> [--reset] <service>...}"
 shift 2
+reset=0
+if [ "${1:-}" = --reset ]; then
+    reset=1
+    shift
+fi
 [ "$#" -gt 0 ] || { echo "grant-privacy: name at least one service" >&2; exit 2; }
 
 db="$HOME/Library/Developer/CoreSimulator/Devices/$udid/data/Library/TCC/TCC.db"
@@ -47,6 +57,16 @@ row() {
 
 for service in "$@"; do
     key="$(tcc_service "$service")"
+    if [ "$reset" = 1 ]; then
+        xcrun simctl privacy "$udid" reset "$service" "$bundle"
+        if [ -n "$key" ] && [ -n "$(row "$key")" ]; then
+            echo "grant-privacy: simctl left the $service row ($(row "$key")); removing it from TCC.db"
+            sqlite3 "$db" "DELETE FROM access WHERE service = '$key' AND client = '$bundle';"
+            [ -z "$(row "$key")" ] || { echo "grant-privacy: $service still set for $bundle ($(row "$key"))" >&2; exit 1; }
+        fi
+        echo "grant-privacy: $service reset for $bundle${key:+ (no $key row)}"
+        continue
+    fi
     current=""
     [ -n "$key" ] && current="$(row "$key")"
     case "$service,$current" in

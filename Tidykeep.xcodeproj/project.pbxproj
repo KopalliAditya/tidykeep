@@ -16,6 +16,7 @@
 		513F8543051941CDCAC915FC /* PrivacyInfo.xcprivacy in Resources */ = {isa = PBXBuildFile; fileRef = 76DBAA502E06197E1D918BE9 /* PrivacyInfo.xcprivacy */; };
 		64E8114411EE74C6A3FBA597 /* PhotoKitIntegrationTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A658D4452C6C3940988756E9 /* PhotoKitIntegrationTests.swift */; };
 		82EAC8E9B1C1953858FA9B77 /* ContactsIntegrationTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = C37007777B12B38A0D6C1A69 /* ContactsIntegrationTests.swift */; };
+		84600A28285E2D6E6C939EB6 /* PermissionUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2ACE2CF6806BCF8C5B12415F /* PermissionUITests.swift */; };
 		A4613FF013822F7C247AC538 /* AccessibilityAuditTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5736FA414766B478182163E3 /* AccessibilityAuditTests.swift */; };
 		A8666B85C3881EF577CE7EE8 /* TidykeepVision in Frameworks */ = {isa = PBXBuildFile; productRef = D8E3C103F17C29F3C71D272C /* TidykeepVision */; };
 		B68655604CE624A2FBCCC623 /* EndToEndUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = E30A2221652453F068491DB4 /* EndToEndUITests.swift */; };
@@ -46,6 +47,7 @@
 		0DBA47255282FDAE53E37A1F /* TidykeepApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TidykeepApp.swift; sourceTree = "<group>"; };
 		18854472381490333DA541FB /* Tidykeep.app */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.application; path = Tidykeep.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		28A112D137660BD2FC42E998 /* TidykeepAppTests.xctest */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.cfbundle; path = TidykeepAppTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+		2ACE2CF6806BCF8C5B12415F /* PermissionUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PermissionUITests.swift; sourceTree = "<group>"; };
 		308282ECCF0C32BC92AFBCE3 /* TidykeepKit */ = {isa = PBXFileReference; lastKnownFileType = folder; name = TidykeepKit; path = TidykeepKit; sourceTree = SOURCE_ROOT; };
 		4286790923472B655AA42793 /* UITestSupport.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UITestSupport.swift; sourceTree = "<group>"; };
 		5736FA414766B478182163E3 /* AccessibilityAuditTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AccessibilityAuditTests.swift; sourceTree = "<group>"; };
@@ -88,6 +90,7 @@
 			children = (
 				5736FA414766B478182163E3 /* AccessibilityAuditTests.swift */,
 				E30A2221652453F068491DB4 /* EndToEndUITests.swift */,
+				2ACE2CF6806BCF8C5B12415F /* PermissionUITests.swift */,
 				C170734525EBC11EE61435B9 /* ScreenshotTests.swift */,
 				4286790923472B655AA42793 /* UITestSupport.swift */,
 			);
@@ -266,6 +269,7 @@
 			files = (
 				A4613FF013822F7C247AC538 /* AccessibilityAuditTests.swift in Sources */,
 				B68655604CE624A2FBCCC623 /* EndToEndUITests.swift in Sources */,
+				84600A28285E2D6E6C939EB6 /* PermissionUITests.swift in Sources */,
 				38BDF87C4C4C22C08E901848 /* ScreenshotTests.swift in Sources */,
 				BEA4335C20E5DFC98B91CFDA /* UITestSupport.swift in Sources */,
 			);
