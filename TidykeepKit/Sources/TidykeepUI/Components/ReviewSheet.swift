@@ -73,7 +73,7 @@ struct ReviewSheet: View {
                 .padding(Space.l)
             }
             .background(Palette.groupedBackground)
-            .safeAreaBar(edge: .bottom) {
+            .bottomBar {
                 Button {
                     let confirm = request.confirm
                     dismiss()
@@ -84,7 +84,7 @@ struct ReviewSheet: View {
                         .foregroundStyle(Palette.onAccent)
                         .frame(maxWidth: .infinity, minHeight: 30)
                 }
-                .buttonStyle(.glassProminent)
+                .prominentGlassButton()
                 .tint(Palette.accent)
                 .controlSize(.large)
                 .padding(.horizontal, Space.l)
@@ -117,8 +117,10 @@ private struct ReviewMosaic: View {
             if !photos.isEmpty {
                 LazyVGrid(columns: [GridItem(.adaptive(minimum: 68), spacing: Space.xs)], spacing: Space.xs) {
                     ForEach(photos.prefix(Self.shown)) { item in
-                        PhotoThumbnail(id: item.id, pixelSize: 200)
+                        // The square comes from the clear colour; a filled photo would set its own shape.
+                        Color.clear
                             .aspectRatio(1, contentMode: .fit)
+                            .overlay { PhotoThumbnail(id: item.id, pixelSize: 200) }
                             .clipShape(RoundedRectangle(cornerRadius: Radius.tile, style: .continuous))
                             .overlay(alignment: .bottomTrailing) {
                                 if marksRemoval {
