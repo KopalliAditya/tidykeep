@@ -186,11 +186,13 @@ public final class SystemContactStore: ContactStoring {
         var created: [(contact: CNMutableContact, groupIDs: [String])] = []
         if let keeper = fetchedKeeper {
             let current = card(keeper, account: account)
+            // The keeper's image data was fetched when the merge took another card's photo.
             let reverted = try MergeUndo.revertedKeeper(
-                current: current, plan: plan, overwritingLaterEdits: overwritingLaterEdits)
+                current: current, photo: plan.photoFromID == nil ? nil : keeper.imageData, plan: plan,
+                saved: saved, overwritingLaterEdits: overwritingLaterEdits)
             let updated = mutable(keeper)
-            reverted.write(reverted.fields(differingFrom: current), to: updated)
-            if plan.photoFromID != nil { updated.imageData = savedKeeper?.imageData }
+            reverted.card.write(reverted.card.fields(differingFrom: current), to: updated)
+            if reverted.restoresPhoto { updated.imageData = savedKeeper?.imageData }
             save.update(updated)
             for id in joined.sorted() {
                 guard let group = groups[id], try memberIDs(store, of: id).contains(plan.keeperID) else { continue }

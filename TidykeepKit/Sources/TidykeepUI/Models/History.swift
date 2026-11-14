@@ -18,8 +18,11 @@ public final class History {
         self.file = directory.map { JSONFile(url: $0.appendingPathComponent("history.json")) }
         self.now = now
         var log = file?.load() ?? ReceiptLog()
+        let loaded = log.receipts.count
         log.prune(now: now())
         self.log = log
+        // Saved, so receipts too old to keep leave the file as well as the screen.
+        if log.receipts.count < loaded { save() }
     }
 
     public var receipts: [Receipt] { log.receipts }
@@ -39,15 +42,43 @@ public final class History {
         title: String? = nil,
         payload: Data? = nil
     ) -> UUID {
+        let receipt = newReceipt(kind, requested: requested, itemIDs: itemIDs, bytes: bytes, title: title, payload: payload)
+        log.begin(receipt)
+        save()
+        return receipt.id
+    }
+
+    /// `begin` for a change that only its saved receipt can undo after a relaunch, such as a
+    /// contact merge. Throws when the receipt couldn't be saved, with nothing recorded, so the
+    /// change can stop before it starts.
+    public func beginSaved(
+        _ kind: Receipt.Kind,
+        requested: Int,
+        itemIDs: [String] = [],
+        bytes: Int64? = nil,
+        title: String? = nil,
+        payload: Data? = nil
+    ) throws -> UUID {
+        let receipt = newReceipt(kind, requested: requested, itemIDs: itemIDs, bytes: bytes, title: title, payload: payload)
+        log.begin(receipt)
+        do {
+            try file?.save(log)
+        } catch {
+            log.discard(receipt.id)
+            throw error
+        }
+        return receipt.id
+    }
+
+    private func newReceipt(
+        _ kind: Receipt.Kind, requested: Int, itemIDs: [String], bytes: Int64?, title: String?, payload: Data?
+    ) -> Receipt {
         let date = now()
         let deadline: Date? = switch kind {
         case .photosRemoved, .screenshotsRemoved, .videosRemoved, .copiesMerged: Receipt.recentlyDeletedDeadline(from: date)
         default: nil
         }
-        let receipt = Receipt(kind: kind, date: date, requested: requested, itemIDs: itemIDs, bytes: bytes, title: title, deadline: deadline, payload: payload)
-        log.begin(receipt)
-        save()
-        return receipt.id
+        return Receipt(kind: kind, date: date, requested: requested, itemIDs: itemIDs, bytes: bytes, title: title, deadline: deadline, payload: payload)
     }
 
     public func finish(_ id: UUID, completed: Int, keepIfFailed: Bool = false, update: (inout Receipt) -> Void = { _ in }) {
