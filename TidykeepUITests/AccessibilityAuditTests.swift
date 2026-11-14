@@ -78,10 +78,10 @@ final class AccessibilityAuditTests: XCTestCase {
         failOnAppIssues()
     }
 
-    /// The Rules rows that change layout at accessibility text sizes, at the largest one: the
-    /// switches go under their words, and the pickers open a list of their own instead of a
-    /// menu. In strict mode, fails if a switch row isn't more than twice its default height, or
-    /// the clipped text audit finds anything in a row. That audit sees only what VoiceOver
+    /// The Rules rows with the longest words, at the largest text size: the switches, which go
+    /// under their words there, and the pickers, whose choices wrap under their names. In strict
+    /// mode, fails if a switch row isn't more than twice its default height, or the clipped text
+    /// audit finds anything in a row. That audit sees only what VoiceOver
     /// sees, one switch per switch row, so a screenshot of each row shows its words; the element
     /// tree and the full audit are attached too.
     @MainActor

@@ -14,7 +14,6 @@ struct RulesView: View {
     @Environment(History.self) private var history
     @Environment(Preferences.self) private var preferences
     @AppStorage(Haptics.key) private var hapticsOn = true
-    @Environment(\.dynamicTypeSize) private var typeSize
     @ViewState private var confirmsForget = false
     @ViewState private var confirmsClear = false
 
@@ -112,22 +111,22 @@ struct RulesView: View {
             Picker(Copy.Rules.photosFrom, selection: Binding(get: { preferences.scope }, set: { preferences.scope = $0 })) {
                 ForEach(ScanScope.allCases) { Text($0.title).tag($0) }
             }
-            .rowPickerStyle(typeSize)
+            .rowPickerStyle()
             .accessibilityIdentifier("rules.picker.scope")
             Picker(Copy.Rules.howAlike, selection: Binding(get: { preferences.sensitivity }, set: { preferences.sensitivity = $0 })) {
                 ForEach(Sensitivity.allCases) { Text($0.title).tag($0) }
             }
-            .rowPickerStyle(typeSize)
+            .rowPickerStyle()
             .accessibilityIdentifier("rules.picker.sensitivity")
             Picker(Copy.Rules.bigVideos, selection: Binding(get: { preferences.videoMinimum }, set: { preferences.videoMinimum = $0 })) {
                 ForEach(Preferences.videoMinimums, id: \.self) { Text(Copy.duration($0)).tag($0) }
             }
-            .rowPickerStyle(typeSize)
+            .rowPickerStyle()
             .accessibilityIdentifier("rules.picker.videos")
             Picker(Copy.Rules.largeFiles, selection: Binding(get: { preferences.largeFileMinimum }, set: { preferences.largeFileMinimum = $0 })) {
                 ForEach(Preferences.largeFileMinimums, id: \.self) { Text(Copy.bytes($0)).tag($0) }
             }
-            .rowPickerStyle(typeSize)
+            .rowPickerStyle()
             .accessibilityIdentifier("rules.picker.files")
         } header: {
             Text(Copy.Rules.whatToLookAt).foregroundStyle(Palette.secondaryText)
@@ -458,17 +457,13 @@ extension View {
         #endif
     }
 
-    /// Pickers in a form row: a menu beside the label, or on iPhone at accessibility text sizes
-    /// a list of their own, where a long choice like "Only near-identical" wraps instead of
-    /// being cut short.
+    /// Pickers in a form row: on iPhone a row that opens a list of the choices, as in Settings,
+    /// so at large text sizes a long choice like "Only near-identical" wraps under the name
+    /// instead of being cut short in a menu. The Mac keeps its menu.
     @ViewBuilder
-    func rowPickerStyle(_ typeSize: DynamicTypeSize) -> some View {
+    func rowPickerStyle() -> some View {
         #if os(iOS)
-        if typeSize.isAccessibilitySize {
-            pickerStyle(.navigationLink)
-        } else {
-            pickerStyle(.automatic)
-        }
+        pickerStyle(.navigationLink)
         #else
         self
         #endif
