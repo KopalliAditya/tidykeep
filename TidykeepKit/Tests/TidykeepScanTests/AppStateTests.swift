@@ -543,6 +543,14 @@ final class MemoryPhotoSource: PhotoSource, @unchecked Sendable {
     func changes() -> AsyncStream<Void> { AsyncStream { _ in } }
     func fetchVideos(since: Date?) async throws -> [VideoMeta] { lock.withLock { videoList } }
     func albums() async -> [PhotoAlbum] { albumList }
+    /// As PhotoKit's does, each kept copy joins the albums of the copies removed.
+    func merge(_ sets: [CopyMerge]) async -> [MergeOutcome]? {
+        let deleted = await delete(sets.flatMap(\.removeIDs))
+        guard !deleted.isEmpty else { return nil }
+        return sets.map {
+            MergeOutcome(keeperID: $0.keeperID, deletedIDs: deleted.intersection($0.removeIDs), albumIDsAdded: $0.albumsToJoin(albumList).map(\.id))
+        }
+    }
 }
 
 struct ConstantAnalyzer: FrameAnalyzing {

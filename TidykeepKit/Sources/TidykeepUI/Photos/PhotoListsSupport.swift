@@ -14,7 +14,8 @@ extension PhotosModel {
         let sets = groups.filter { !removals(in: $0).isEmpty }
         let removing = sets.flatMap { removals(in: $0).map(\.id) }
         let keepers = sets.map { copyKeeper(in: $0).id }
-        // Copies kept besides the keeper: favorites and edited ones, which always stay.
+        // Copies kept besides the keeper: ones kept safe, which always stay, and ones in an
+        // album the kept copy can't join.
         let alsoKept = sets.reduce(0) { total, group in
             total + group.members.count - removals(in: group).count - 1
         }
@@ -26,7 +27,7 @@ extension PhotosModel {
             reason: Reason(
                 why: Copy.Copies.reviewWhy(sets: sets.count),
                 keptSafe: alsoKept > 0 ? Copy.Copies.keptSafe(alsoKept) : nil,
-                undo: Copy.Copies.undo(until: deadline)
+                undo: Copy.Copies.undo(until: deadline, joinsAlbums: sets.contains { !albumsJoined(by: $0).isEmpty })
             ),
             sharedLibraryLine: Copy.Review.sharedLibrary,
             confirmTitle: confirmTitle ?? Copy.Copies.mergeButton(sets.count),
@@ -88,13 +89,17 @@ extension PhotosModel {
     }
 
     /// Where the kept copy will be after merging, by title: the albums it's in now and the ones
-    /// it joins. A copy in an album it can't join isn't removed (`CopyMerge.sparingAlbums`), so
-    /// that album isn't named.
+    /// it joins. A copy in an album it can't join isn't removed (`removals(in:)`), so that
+    /// album isn't named.
     func albumTitles(for group: PhotoGroup) -> [String] {
         let keeper = copyKeeper(in: group).id
-        let merge = CopyMerge(keeperID: keeper, removeIDs: removals(in: group).map(\.id)).sparingAlbums(albums)
-        let joined = Set(merge.albumsToJoin(albums).map(\.id))
+        let joined = Set(albumsJoined(by: group).map(\.id))
         return albums.filter { $0.assetIDs.contains(keeper) || joined.contains($0.id) }.map(\.title).sorted()
+    }
+
+    /// The albums the kept copy joins when this set is merged: those of the copies removed.
+    func albumsJoined(by group: PhotoGroup) -> [PhotoAlbum] {
+        CopyMerge(keeperID: copyKeeper(in: group).id, removeIDs: removals(in: group).map(\.id)).albumsToJoin(albums)
     }
 
     /// Marks or unmarks every screenshot in `ids`: all of them when any is unmarked, otherwise

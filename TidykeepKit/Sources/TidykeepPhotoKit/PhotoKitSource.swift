@@ -199,7 +199,7 @@ public final class PhotoKitSource: PhotoSource {
         let keepers = PHAsset.fetchAssets(withLocalIdentifiers: outcomes.map(\.keeperID), options: nil)
         var byID: [String: PHAsset] = [:]
         for i in 0..<keepers.count { byID[keepers.object(at: i).localIdentifier] = keepers.object(at: i) }
-        let work = outcomes.filter { byID[$0.keeperID] != nil && ($0.favoriteAdded || !$0.albumIDsAdded.isEmpty) }
+        let work = outcomes.filter { byID[$0.keeperID] != nil && $0.changedKeeper }
         guard !work.isEmpty else { return true }
         do {
             try await PHPhotoLibrary.shared().performChanges {

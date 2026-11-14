@@ -75,7 +75,7 @@ enum HistoryDemo {
         move(expired, back: 45 * day)
 
         let expiredMerge = history.begin(.copiesMerged, requested: 2, itemIDs: ["old-a", "old-b"])
-        history.finish(expiredMerge, completed: 2) { $0.payload = mergePayload(keeper: "old-keeper", deleted: ["old-a", "old-b"]) }
+        history.finish(expiredMerge, completed: 2) { $0.payload = mergePayload(keeper: "old-keeper", deleted: ["old-a", "old-b"], albums: ["album-family"]) }
         move(expiredMerge, back: 40 * day)
 
         let deleted = history.begin(.filesDeleted, requested: 3, bytes: 1_284_517_888)
@@ -106,7 +106,7 @@ enum HistoryDemo {
         // Today: a merge, a keep-all that was taken back, a check cut off by quitting, and a
         // fresh removal.
         let merged = history.begin(.copiesMerged, requested: 3, itemIDs: ["a", "b", "c"])
-        history.finish(merged, completed: 3) { $0.payload = mergePayload(keeper: "keeper", deleted: ["a", "b", "c"]) }
+        history.finish(merged, completed: 3) { $0.payload = mergePayload(keeper: "keeper", deleted: ["a", "b", "c"], albums: ["album-family"]) }
         move(merged, back: 5_400)
 
         let undone = history.begin(.keptAll, requested: 4, itemIDs: ["group-x"])
@@ -310,10 +310,22 @@ enum HistoryDemo {
         #expect(Copy.Receipts.status(photos, now: now) == "Gone from Recently Deleted")
 
         // Past Recently Deleted, Undo changes can still take back a merge's album changes.
-        let oldMerge = Receipt(kind: .copiesMerged, date: date, status: .done, requested: 2, completed: 2, deadline: now.addingTimeInterval(-1), payload: mergePayload(keeper: "k", deleted: ["a", "b"]))
+        let oldMerge = Receipt(kind: .copiesMerged, date: date, status: .done, requested: 2, completed: 2, deadline: now.addingTimeInterval(-1), payload: mergePayload(keeper: "k", deleted: ["a", "b"], albums: ["x"]))
         #expect(makeState().canUndo(oldMerge))
         #expect(Copy.Receipts.recoverySteps(oldMerge, now: now).last?.contains("Undo changes") == true)
         #expect(Copy.Receipts.recoveryIntro(oldMerge, now: now).contains("album changes can still be undone"))
+
+        // A merge that added the kept photo to no album only removed copies, so there's no
+        // Undo changes: in Recently Deleted the steps are Photos' own, and past it, none.
+        var plainMerge = Receipt(kind: .copiesMerged, date: date, status: .done, requested: 2, completed: 2, deadline: Receipt.recentlyDeletedDeadline(from: date), payload: mergePayload(keeper: "k", deleted: ["a", "b"]))
+        #expect(!makeState().canUndo(plainMerge))
+        #expect(Copy.Receipts.recoverySteps(plainMerge, now: now).count == 5)
+        #expect(Copy.Receipts.undoLine(plainMerge, now: now) == "Recover the removed copies in the Photos app. The steps are below.")
+        #expect(Copy.Receipts.status(plainMerge, now: now).hasPrefix("In Recently Deleted until"))
+        plainMerge.deadline = now.addingTimeInterval(-1)
+        #expect(Copy.Receipts.recoverySteps(plainMerge, now: now).isEmpty)
+        #expect(Copy.Receipts.undoLine(plainMerge, now: now) == Copy.Reason.cantBeUndone)
+        #expect(!Copy.Receipts.recoveryIntro(plainMerge, now: now).contains("undone"))
 
         let deleted = Receipt(kind: .filesDeleted, date: date, status: .done, requested: 2, completed: 2, bytes: 2_000_000)
         #expect(Copy.Receipts.recoverySteps(deleted, now: now).isEmpty)
@@ -358,7 +370,8 @@ enum HistoryDemo {
     }
 }
 
-/// What a finished merge saves, so its receipt can be undone.
-private func mergePayload(keeper: String, deleted: Set<String>) -> Data? {
-    try? JSONEncoder().encode([MergeOutcome(keeperID: keeper, deletedIDs: deleted)])
+/// What a finished merge saves, so its receipt can be undone: `albums` are the ones the kept
+/// photo joined.
+private func mergePayload(keeper: String, deleted: Set<String>, albums: [String] = []) -> Data? {
+    try? JSONEncoder().encode([MergeOutcome(keeperID: keeper, deletedIDs: deleted, albumIDsAdded: albums)])
 }

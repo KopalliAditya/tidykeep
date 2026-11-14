@@ -18,9 +18,9 @@ final class EndToEndUITests: XCTestCase {
     }
 
     /// Similar Shots: say no to PhotoKit once, then remove the extra shots of a burst. Copies:
-    /// merge a set of copies, then undo it. Both go through Review and PhotoKit's own
-    /// confirmation, leave a notice, and add a row to History. One launch, so the photo check
-    /// runs once.
+    /// merge a set of copies, which has no Undo since the seed puts no copy in an album. Both
+    /// go through Review and PhotoKit's own confirmation, leave a notice, and add a row to
+    /// History. One launch, so the photo check runs once.
     @MainActor
     func testRemoveSimilarShotsAndMergeCopies() throws {
         let tidy = AppDriver(self)
@@ -116,7 +116,7 @@ final class EndToEndUITests: XCTestCase {
             tidy.selectTab("tab.tidy", label: "Tidy")
         }
 
-        let copies = XCTContext.runActivity(named: "Merge a set of copies, then undo it") { _ -> String in
+        let copies = XCTContext.runActivity(named: "Merge a set of copies") { _ -> String in
             // Removing photos starts a fresh check of what changed.
             tidy.waitForPhotoCheck()
             tidy.open("home.card.copies")
@@ -138,27 +138,17 @@ final class EndToEndUITests: XCTestCase {
             )
             XCTAssertNotNil(notice, "No notice after the merge")
             let merged = notice ?? ""
-            // The notice and its Undo go six seconds after it shows, so Undo is tapped first.
-            var undo: XCUIElement?
-            tidy.until(5, every: 0.25) {
-                undo = tidy.undoButton()
-                return undo != nil
-            }
-            XCTAssertNotNil(undo, "The notice \"\(merged)\" has no Undo")
-            undo?.tap()
+            // The seed puts no copy in an album or favorites, so the kept copy joined no album
+            // and there's nothing for Undo to take back: the notice has none. It goes four
+            // seconds after it shows, so this looks while it's still up.
+            let offersUndo = tidy.until(2, every: 0.25) { tidy.noticeOffersUndo(merged) }
             attach(text: prompts.joined(separator: ", "), named: "prompts-copies")
             attach(text: merged, named: "notice-copies")
+            XCTAssertFalse(offersUndo, "The notice \"\(merged)\" offers Undo, but the merge added the kept copy to no album")
             XCTAssertTrue(merged.hasPrefix("Merged 1 set."), "Notice reads \"\(merged)\", expected \"Merged 1 set.\"")
             // "The 2 copies removed are in Recently Deleted": History counts them the same way.
             let copies = merged.range(of: #"\d+ cop(y|ies)"#, options: .regularExpression).map { String(merged[$0]) } ?? ""
             XCTAssertFalse(copies.isEmpty, "The notice \"\(merged)\" doesn't say how many copies went")
-
-            // The seed puts no copy in an album or favorites, so there's nothing for PhotoKit
-            // to change back and no prompt.
-            let undone = nextNotice(after: merged, tidy)
-            attach(text: undone, named: "notice-copies-undo")
-            XCTAssertTrue(undone.hasPrefix("Took back"), "Notice after Undo reads \"\(undone)\"")
-            XCTAssertNotEqual(undone, "Nothing changed.", "Undo changed nothing")
             tidy.popToRoot()
             return copies
         }
@@ -169,13 +159,14 @@ final class EndToEndUITests: XCTestCase {
                 tidy.until(20) { tidy.rowCount(prefixed: "history.row.") >= 2 },
                 "History shows \(tidy.rowCount(prefixed: "history.row.")) receipts, expected 2"
             )
-            // Undo keeps the merge in History, marked undone.
+            // With no Undo, the merge stays done, and its row says until when the removed
+            // copies are in Recently Deleted.
             XCTAssertTrue(
                 tidy.until(20) {
                     let top = newestReceipt(tidy)
-                    return top.hasPrefix("Merged \(copies).") && top.hasSuffix("Undone.")
+                    return top.hasPrefix("Merged \(copies).") && top.contains(". In Recently Deleted until ")
                 },
-                "History's top row reads \"\(newestReceipt(tidy))\", expected \"Merged \(copies).\", undone"
+                "History's top row reads \"\(newestReceipt(tidy))\", expected \"Merged \(copies).\", in Recently Deleted"
             )
         }
     }

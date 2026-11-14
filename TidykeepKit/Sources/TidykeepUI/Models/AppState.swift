@@ -97,8 +97,9 @@ public final class AppState {
     public func canUndo(_ receipt: Receipt) -> Bool {
         guard receipt.status == .done || receipt.status == .partial else { return false }
         switch receipt.kind {
-        // A merge cut off before it finished saved nothing to take back.
-        case .copiesMerged: return receipt.payload != nil
+        // A merge cut off before it finished saved nothing to take back, and one that added
+        // the kept photo to no album changed nothing but the removed copies.
+        case .copiesMerged: return receipt.canTakeBackMerge
         case .keptAll, .filesHeld, .contactsMerged: return true
         case .photosRemoved, .screenshotsRemoved, .videosRemoved, .filesPutBack, .filesDeleted: return false
         }

@@ -275,10 +275,11 @@ struct CopySetView: View {
         let removing = photos.removals(in: group)
         let alsoKept = group.members.count - removing.count - 1
         let relation = removing.first.map { photos.relation(of: $0, in: group) } ?? CopyRelation.of(group, formats: photos.formats)
+        let keeper = photos.copyKeeper(in: group)
         return Reason(
-            why: Copy.Copies.why(relation, keeperIsProtected: photos.copyKeeper(in: group).isProtected),
+            why: Copy.Copies.why(relation, keeperIsProtected: keeper.isProtected, userChose: keeper.id != group.keeper.id),
             keptSafe: alsoKept > 0 ? Copy.Copies.keptSafe(alsoKept) : nil,
-            undo: Copy.Copies.undo(until: Receipt.recentlyDeletedDeadline(from: Date()))
+            undo: Copy.Copies.undo(until: Receipt.recentlyDeletedDeadline(from: Date()), joinsAlbums: !photos.albumsJoined(by: group).isEmpty)
         )
     }
 
@@ -460,7 +461,8 @@ private struct CopyMemberRow: View {
 
     private var status: String {
         if isKeeper { return Copy.Copies.keepingStatus }
-        if photos.isKept(meta.id, in: group) { return Copy.Copies.keptSafeStatus }
+        // Kept safe, or in an album the kept copy can't join, so merging leaves it.
+        if !photos.removals(in: group).contains(where: { $0.id == meta.id }) { return Copy.Copies.keptSafeStatus }
         return Copy.Copies.removeStatus
     }
 }
