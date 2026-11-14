@@ -32,6 +32,8 @@ extension Copy.Similar {
     }
     static let stillChecking = "Similar shots show up here as they're found."
     static let emptyDetail = "No similar shots in the photos checked."
+    static let noneSoFar = "No similar shots in the photos checked so far."
+    static let notChecked = "Similar shots show up here after a check."
     static let more = "More"
     static let sort = "Sort"
     static let showKept = "Show groups I kept"

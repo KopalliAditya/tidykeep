@@ -167,7 +167,7 @@ struct SimilarSharedZoom: Equatable {
 }
 
 /// One photo in Compare, filling its frame and following the shared zoom. Pinch to zoom, drag
-/// to pan, double-tap to zoom in or out.
+/// to pan once zoomed, double-tap to zoom in or out.
 private struct SimilarZoomedPhoto: View {
     let id: String
     @Binding var zoom: SimilarSharedZoom
@@ -187,9 +187,14 @@ private struct SimilarZoomedPhoto: View {
                     MagnifyGesture()
                         .onChanged { zoom.pinch($0.magnification) }
                         .onEnded { _ in zoom.end(in: proxy.size) }
-                        .simultaneously(with: DragGesture(minimumDistance: 8)
-                            .onChanged { zoom.drag($0.translation, in: proxy.size) }
-                            .onEnded { _ in zoom.end(in: proxy.size) })
+                )
+                // Only while zoomed: a drag on the photo would otherwise take the vertical
+                // swipe from the scroll view, which large text needs to reach the pickers.
+                .simultaneousGesture(
+                    DragGesture(minimumDistance: 8)
+                        .onChanged { zoom.drag($0.translation, in: proxy.size) }
+                        .onEnded { _ in zoom.end(in: proxy.size) },
+                    isEnabled: zoom.isZoomed
                 )
                 .onTapGesture(count: 2) {
                     withAnimation(Motion.standard(reduceMotion)) { zoom.step(by: 0) }

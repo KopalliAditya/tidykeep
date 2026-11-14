@@ -12,8 +12,12 @@ struct SimilarShotsView: View {
     @ViewState private var review: ReviewRequest?
     @ViewState private var showsCoverage = false
     @ViewState private var finishedBatches = 0
-    @AccessibilityFocusState private var summaryFocused: Bool
+    /// The rows as they were when a group was opened, to find the next one when it's gone.
+    @ViewState private var leftRows: [SimilarListLayout.Row] = []
+    @AccessibilityFocusState private var focus: SimilarListFocus?
     @Namespace private var rotorSpace
+    /// The spec's pause before focus moves after a pop or a removal.
+    private static let focusDelay: Duration = .milliseconds(600)
 
     var body: some View {
         content
@@ -24,6 +28,8 @@ struct SimilarShotsView: View {
             .reviewSheet($review)
             .sheet(isPresented: $showsCoverage) { CoverageSheet(coverage: photos.coverage) }
             .feedback(.success, trigger: finishedBatches)
+            .onDisappear { leftRows = sections.flatMap(\.rows) }
+            .onAppear(perform: focusAfterReturn)
     }
 
     @ViewBuilder
@@ -60,7 +66,7 @@ struct SimilarShotsView: View {
                     .foregroundStyle(.primary)
                     .contentTransition(.numericText())
                     .accessibilityAddTraits(.isHeader)
-                    .accessibilityFocused($summaryFocused)
+                    .accessibilityFocused($focus, equals: .summary)
                     .accessibilityIdentifier("similar.summary")
             }
             if photos.scanState.progress != nil {
@@ -87,11 +93,14 @@ struct SimilarShotsView: View {
                 .accessibilityIdentifier("similar.coverage")
             }
             if photos.access == .limited {
-                Button(Copy.Access.chooseMore) { Task { await photos.chooseMorePhotos() } }
-                    .font(.subheadline.weight(.medium))
-                    .foregroundStyle(Palette.accent)
-                    .buttonStyle(.plain)
-                    .frame(minHeight: 44)
+                Button { Task { await photos.chooseMorePhotos() } } label: {
+                    Text(Copy.Access.chooseMore)
+                        .font(.subheadline.weight(.medium))
+                        .foregroundStyle(Palette.accent)
+                        .frame(minHeight: 44, alignment: .leading)
+                        .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
             }
             ScanStatusView(state: photos.scanState)
         }
@@ -104,24 +113,50 @@ struct SimilarShotsView: View {
 
     // MARK: Empty
 
+    /// "All tidy" only once a check has looked at everything. A check that is still going,
+    /// was stopped or couldn't run says so, with a way to check again.
     private var emptyState: some View {
         ScrollView {
             VStack(spacing: Space.xl) {
                 header
-                if photos.scanState.isActive {
-                    Text(Copy.Similar.stillChecking)
-                        .font(.subheadline)
-                        .foregroundStyle(.secondary)
-                        .multilineTextAlignment(.center)
-                        .frame(maxWidth: .infinity)
-                        .padding(.top, Space.xxl)
-                } else {
-                    AllTidyView(detail: Copy.Similar.emptyDetail)
-                        .padding(.top, Space.xxl)
-                }
+                emptyMessage
+                    .frame(maxWidth: .infinity)
+                    .padding(.top, Space.xxl)
             }
             .padding(.horizontal, Space.l)
             .padding(.bottom, Space.xl)
+        }
+    }
+
+    @ViewBuilder
+    private var emptyMessage: some View {
+        switch photos.scanState {
+        case .finished:
+            AllTidyView(detail: Copy.Similar.emptyDetail)
+                .accessibilityFocused($focus, equals: .empty)
+        case .scanning, .paused:
+            emptyNote(Copy.Similar.stillChecking)
+        case .stopped(let p) where p.checked > 0:
+            emptyNote(Copy.Similar.noneSoFar, checks: true)
+        case .stopped, .failed, .idle:
+            emptyNote(Copy.Similar.notChecked, checks: true)
+        }
+    }
+
+    private func emptyNote(_ text: String, checks: Bool = false) -> some View {
+        VStack(spacing: Space.l) {
+            Text(text)
+                .font(.subheadline)
+                .foregroundStyle(.secondary)
+                .multilineTextAlignment(.center)
+                .fixedSize(horizontal: false, vertical: true)
+                .accessibilityFocused($focus, equals: .empty)
+            if checks {
+                Button(Copy.General.checkAgain) { photos.rescan() }
+                    .buttonStyle(.glass)
+                    .foregroundStyle(Palette.accent)
+                    .controlSize(.large)
+            }
         }
     }
 
@@ -175,6 +210,7 @@ struct SimilarShotsView: View {
         .listRowBackground(Palette.card)
         .accessibilityLabel(Copy.Similar.rowLabel(group, kept: kept, removing: removing, keptSafe: keptSafe))
         .accessibilityIdentifier("similar.row.\(row.index)")
+        .accessibilityFocused($focus, equals: .row(group.id))
         .accessibilityRotorEntry(id: group.id, in: rotorSpace)
         .swipeActions(edge: .leading, allowsFullSwipe: true) {
             Button { keepAll(group) } label: {
@@ -211,7 +247,9 @@ struct SimilarShotsView: View {
     // MARK: Actions
 
     private var removeAction: BarAction? {
-        // While checking, groups still change shape, so there's nothing to confirm yet.
+        // While checking, rows stream in and the total keeps changing, so the bar that removes
+        // across every group waits for the check (spec). One group, from its row or its
+        // screen, can still be removed: the review lists exactly the photos that go.
         guard !photos.similar.isEmpty, !photos.scanState.isActive else { return nil }
         let n = photos.similarRemovalCount
         return BarAction(
@@ -225,15 +263,33 @@ struct SimilarShotsView: View {
     }
 
     private func reviewRemoval(_ groups: [PhotoGroup]) {
-        guard var request = photos.similarReview(groups) else { return }
-        request.confirm = {
-            let before = photos.similar.count
-            await photos.removeSuggested(in: groups)
-            guard photos.similar.count < before else { return }
+        review = photos.similarReview(groups) { removed in
+            guard removed else { return }
             finishedBatches += 1
-            summaryFocused = true
+            // The rows animate out first; with none left, the empty state takes the focus.
+            moveFocus(to: photos.similar.isEmpty ? .empty : .summary)
         }
-        review = request
+    }
+
+    /// Back from a group that is gone (removed or kept there): focus goes to the row that took
+    /// its place, or the one before it at the end of the list.
+    private func focusAfterReturn() {
+        let rows = leftRows
+        leftRows = []
+        func current(_ row: SimilarListLayout.Row) -> PhotoGroup? {
+            photos.similarGroup(row.group.id, following: Set(row.group.members.map(\.id)))
+        }
+        guard let gone = rows.firstIndex(where: { current($0) == nil }) else { return }
+        let next = rows[gone...].lazy.compactMap(current).first ?? rows[..<gone].reversed().lazy.compactMap(current).first
+        moveFocus(to: next.map { .row($0.id) } ?? .empty)
+    }
+
+    /// After the screen settles, so VoiceOver lands on what is there rather than what left.
+    private func moveFocus(to target: SimilarListFocus) {
+        Task {
+            try? await Task.sleep(for: Self.focusDelay)
+            focus = target
+        }
     }
 
     private func keepAll(_ group: PhotoGroup) {
@@ -258,6 +314,13 @@ struct SimilarShotsView: View {
             .disabled(photos.isWorking)
         }
     }
+}
+
+/// Where VoiceOver focus goes on the list after a change.
+enum SimilarListFocus: Hashable {
+    case summary
+    case empty
+    case row(String)
 }
 
 /// One group in the list: a small stack of its photos with the best pick on top, what it is,
@@ -444,7 +507,14 @@ enum SimilarListLayout {
 extension PhotosModel {
     /// The review sheet for removing what's marked in these groups: what goes, what stays,
     /// why, what the rules keep and how to get it back. Nil when nothing is marked.
-    func similarReview(_ groups: [PhotoGroup], now: Date = Date()) -> ReviewRequest? {
+    ///
+    /// Confirming removes them; `done` then hears whether anything was removed (nothing is
+    /// when the iOS alert is cancelled), so the screen can follow up with focus and a haptic.
+    func similarReview(
+        _ groups: [PhotoGroup],
+        now: Date = Date(),
+        done: (@MainActor (_ removed: Bool) -> Void)? = nil
+    ) -> ReviewRequest? {
         let removing = groups.flatMap { removals(in: $0) }
         guard !removing.isEmpty else { return nil }
         let staying = groups.flatMap { group in group.members.filter { isKept($0.id, in: group) } }
@@ -463,14 +533,20 @@ extension PhotosModel {
             // PhotoKit can't say which photos are in a Shared Library, so the line is always shown.
             sharedLibraryLine: Copy.Review.sharedLibrary,
             confirmTitle: Copy.Similar.removeButton(removing.count),
-            confirm: { [weak self] in await self?.removeSuggested(in: groups) }
+            confirm: { [weak self] in
+                guard let self else { return }
+                let before = self.ledger.photosRemoved
+                await self.removeSuggested(in: groups)
+                done?(self.ledger.photosRemoved > before)
+            }
         )
     }
 
-    /// The Reason card on the group screen, before anything is removed.
+    /// The Reason card on the group screen, before anything is removed. The line under the
+    /// pager already gives the reasons; the card also names the photo.
     func similarReason(_ group: PhotoGroup, now: Date = Date()) -> Reason {
         Reason(
-            why: Copy.Similar.whyThisOne(group),
+            why: Copy.Similar.whyThisOneSpoken(group),
             keptSafe: similarKeptSafe([group]),
             undo: Copy.Similar.undoLine(until: Receipt.recentlyDeletedDeadline(from: now))
         )

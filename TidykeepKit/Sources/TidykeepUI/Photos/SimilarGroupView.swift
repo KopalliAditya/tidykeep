@@ -20,6 +20,9 @@ struct SimilarGroupView: View {
     @ViewState private var review: ReviewRequest?
     @ViewState private var compare: SimilarComparePair?
     @ViewState private var refusals = 0
+    /// Bumped for each keep or remove change the model accepts, for the selection haptic.
+    @ViewState private var changes = 0
+    @ViewState private var removedBatches = 0
     @ViewState private var leaving = false
     @Namespace private var rotorSpace
 
@@ -40,6 +43,8 @@ struct SimilarGroupView: View {
         .reviewSheet($review)
         .sheet(item: $compare) { SimilarCompareView(pair: $0) }
         .feedback(.warning, trigger: refusals)
+        .feedback(.selection, trigger: changes)
+        .feedback(.success, trigger: removedBatches)
     }
 
     /// Follows the group's photos, so a check that adds a photo doesn't close the screen.
@@ -61,12 +66,14 @@ struct SimilarGroupView: View {
                         .padding(.horizontal, Space.l)
                 }
                 pager(group, current: current)
-                decision(current, in: group)
+                whyLine(group)
                     .padding(.horizontal, Space.l)
                 if group.ranking.isCloseCall {
                     closeCall(group)
                         .padding(.horizontal, Space.l)
                 }
+                decision(current, in: group)
+                    .padding(.horizontal, Space.l)
                 grid(group, current: current, removing: removing.count)
                     .padding(.horizontal, Space.l)
                 ReasonCard(reason: photos.similarReason(group))
@@ -80,7 +87,6 @@ struct SimilarGroupView: View {
         .toolbar { menu(group) }
         .actionBar(secondary: keepAllAction(group), primary: removeAction(group, count: removing.count))
         .disabled(photos.isWorking)
-        .feedback(.selection, trigger: removing.map(\.id))
     }
 
     // MARK: Pager
@@ -130,6 +136,23 @@ struct SimilarGroupView: View {
         withAnimation(Motion.standard(reduceMotion)) { pageID = order[next].id }
     }
 
+    // MARK: Why
+
+    /// Why the best pick was chosen, in the engine's words. VoiceOver also hears which photo it is.
+    private func whyLine(_ group: PhotoGroup) -> some View {
+        Label {
+            Text(Copy.Similar.whyThisOne(group))
+        } icon: {
+            Image(systemName: "rosette").foregroundStyle(Palette.accent)
+        }
+        .labelStyle(SimilarCompactLabelStyle())
+        .font(.subheadline.weight(.medium))
+        .foregroundStyle(.primary)
+        .fixedSize(horizontal: false, vertical: true)
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(Copy.Similar.whyThisOneSpoken(group))
+    }
+
     // MARK: Decision
 
     private func decision(_ meta: AssetMeta, in group: PhotoGroup) -> some View {
@@ -156,7 +179,7 @@ struct SimilarGroupView: View {
             }
             if group.members.count > 2 {
                 Button {
-                    photos.keepOnly(meta.id, in: group)
+                    keepOnly(meta, in: group)
                 } label: {
                     Label(Copy.Similar.keepOnlyThis, systemImage: "rosette")
                         .font(.subheadline.weight(.medium))
@@ -174,27 +197,47 @@ struct SimilarGroupView: View {
     /// Asks for the change and notices when the model refuses it (a protected photo, or the
     /// last one kept), so the picker snaps back with a warning.
     private func set(_ keep: Bool, _ meta: AssetMeta, in group: PhotoGroup) {
+        let was = photos.isKept(meta.id, in: group)
         photos.setKeep(keep, meta.id, in: group)
-        if photos.isKept(meta.id, in: group) != keep { refusals += 1 }
+        let now = photos.isKept(meta.id, in: group)
+        if now != keep { refusals += 1 } else if now != was { changes += 1 }
+    }
+
+    private func keepOnly(_ meta: AssetMeta, in group: PhotoGroup) {
+        let before = photos.removals(in: group).map(\.id)
+        photos.keepOnly(meta.id, in: group)
+        if photos.removals(in: group).map(\.id) != before { changes += 1 }
     }
 
     // MARK: Close call
 
+    /// The top two are nearly as good: a note and Compare. At accessibility sizes the button
+    /// goes under the sentence so the sentence keeps the full width.
     private func closeCall(_ group: PhotoGroup) -> some View {
-        HStack(alignment: .center, spacing: Space.m) {
-            Image(systemName: "eye")
-                .foregroundStyle(Palette.closeCall)
-                .accessibilityHidden(true)
-            Text(Copy.Similar.closeCall)
-                .font(.subheadline)
-                .fixedSize(horizontal: false, vertical: true)
-                .accessibilityLabel(Copy.Similar.closeCallSpoken(group))
-            Spacer(minLength: 0)
+        let stacked = typeSize.isAccessibilitySize
+        let layout = stacked
+            ? AnyLayout(VStackLayout(alignment: .leading, spacing: Space.m))
+            : AnyLayout(HStackLayout(alignment: .center, spacing: Space.m))
+        return layout {
+            HStack(alignment: .firstTextBaseline, spacing: Space.m) {
+                Image(systemName: "eye")
+                    .foregroundStyle(Palette.closeCall)
+                    .accessibilityHidden(true)
+                Text(Copy.Similar.closeCall)
+                    .font(.subheadline)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .accessibilityLabel(Copy.Similar.closeCallSpoken(group))
+            }
+            .layoutPriority(1)
+            if !stacked { Spacer(minLength: 0) }
+            // Large, so the button is at least 44 pt tall on iPhone.
             Button(Copy.Similar.compare) { compareBestTwo(group) }
                 .font(.subheadline.weight(.semibold))
                 .buttonStyle(.bordered)
+                .controlSize(.large)
                 .tint(Palette.accent)
         }
+        .frame(maxWidth: .infinity, alignment: .leading)
         .padding(Space.m)
         .background(Palette.closeCall.opacity(0.1), in: RoundedRectangle(cornerRadius: Radius.inner, style: .continuous))
         .accessibilityElement(children: .contain)
@@ -232,7 +275,7 @@ struct SimilarGroupView: View {
                     }
                     .accessibilityActions {
                         Button(kept ? Copy.Similar.markForRemoval : Copy.Similar.keep) { set(!kept, meta, in: group) }
-                        Button(Copy.Similar.keepOnlyThisOne) { photos.keepOnly(meta.id, in: group) }
+                        Button(Copy.Similar.keepOnlyThisOne) { keepOnly(meta, in: group) }
                         Button(Copy.Similar.compare) { compare(with: meta, in: group) }
                     }
                     .accessibilityRotorEntry(id: meta.id, in: rotorSpace)
@@ -286,18 +329,24 @@ struct SimilarGroupView: View {
         }
     }
 
+    /// After a removal the group is done, so the screen goes back to the list, which moves
+    /// focus to the next row. Cancelled in the iOS alert, or nothing removed: stay put.
     private func reviewRemoval(_ group: PhotoGroup) {
-        guard var request = photos.similarReview([group]) else { return }
         let ids = Set(group.members.map(\.id))
-        request.confirm = {
-            leaving = true
-            await photos.removeSuggested(in: [group])
+        guard var request = photos.similarReview([group], done: { removed in
+            if removed { removedBatches += 1 }
             if photos.similarGroup(group.id, following: ids) == nil {
                 dismiss()
             } else {
-                // Cancelled in the iOS alert, or nothing could be removed: stay put.
                 leaving = false
             }
+        }) else { return }
+        // The group leaves the model before the screen pops; show nothing in between rather
+        // than the "gone" state.
+        let remove = request.confirm
+        request.confirm = {
+            leaving = true
+            await remove()
         }
         review = request
     }
@@ -467,8 +516,12 @@ private struct SimilarPhotoTile: View {
 }
 
 /// Keep or Remove for one photo. A segmented control; at accessibility text sizes, two
-/// stacked buttons so neither word is cut off. `resetToken` rebuilds it after a refusal, so a
-/// segment the user tapped snaps back to what the model says.
+/// stacked buttons so neither word is cut off.
+///
+/// The segmented control shows its own selection, which the model can refuse (a protected
+/// photo, or the last one kept). `resetToken` changes on a refusal and puts the selection back
+/// to what the model says. The control keeps its identity, so VoiceOver stays on it while
+/// the refusal is read out. The stacked buttons read the model directly and need no reset.
 struct SimilarDecisionPicker: View {
     let isKept: Bool
     let label: String
@@ -476,8 +529,11 @@ struct SimilarDecisionPicker: View {
     var resetToken = 0
     let set: (Bool) -> Void
     @Environment(\.dynamicTypeSize) private var typeSize
+    @ViewState private var shown: Choice?
 
     private enum Choice: Hashable { case keep, remove }
+
+    private var modelChoice: Choice { isKept ? .keep : .remove }
 
     var body: some View {
         Group {
@@ -489,7 +545,13 @@ struct SimilarDecisionPicker: View {
                 .accessibilityElement(children: .contain)
                 .accessibilityLabel(label)
             } else {
-                Picker(selection: Binding(get: { isKept ? Choice.keep : .remove }, set: { set($0 == .keep) })) {
+                Picker(selection: Binding(
+                    get: { shown ?? modelChoice },
+                    set: { choice in
+                        shown = choice
+                        set(choice == .keep)
+                    }
+                )) {
                     Text(Copy.Similar.keep).tag(Choice.keep)
                     Text(Copy.Similar.remove).tag(Choice.remove)
                 } label: {
@@ -498,9 +560,11 @@ struct SimilarDecisionPicker: View {
                 .pickerStyle(.segmented)
                 .labelsHidden()
                 .controlSize(.large)
+                .onChange(of: resetToken) { shown = nil }
+                .onChange(of: isKept) { shown = nil }
+                .onChange(of: label) { shown = nil }
             }
         }
-        .id(resetToken)
         .accessibilityIdentifier(identifier)
     }
 
